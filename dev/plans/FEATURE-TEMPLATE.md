@@ -27,19 +27,15 @@ One or two sentences describing the observable outcome and why it matters now.
 - **Needs:** FEATURE-YYY — <reason>
 - **Unblocks:** FEATURE-ZZZ — <reason>
 
-## Notebook MVP
+## Open assumptions
 
-> Expected for medium or large features when a small runnable example can validate a meaningful
-> source, data, algorithm, or integration assumption. Keep this section and explain why when a
-> notebook would not add useful evidence. The notebook is exploratory and does not replace TDD.
+> List what the plan depends on but could not confirm from the repository. For each one, state how
+> it was validated or how implementation will falsify it. Delete the section when the plan rests on
+> nothing uncertain. No particular validation format is required — use the cheapest one that
+> produces evidence (command, throwaway script, or notebook).
 
-- **Applicability:** <Required / Not useful — concise rationale>
-- **Path:** `src/notebooks/FEATURE-XXX-<slug>-mvp.ipynb` / N/A
-- **Question tested:** <the assumption or risk this can confirm or falsify>
-- **Demonstrates:** <smallest meaningful flow and inputs>
-- **Evidence:** <observed result or assertion>
-- **Deliberately omits:** <production concerns outside the MVP>
-- **Production implications:** <decisions the evidence supports or questions still open>
+- **Assumption:** <claim> — **Evidence:** <what was run and observed, or "unvalidated"> —
+  **If wrong:** <consequence and fallback>
 
 ## Design
 
@@ -81,7 +77,6 @@ REFACTOR/verification step. Non-behavior tasks use the cheapest validation-first
 - **Retries / idempotency / evolution:** <relevant repeat-run and schema/partition cases, or N/A>
 - **Configured quality checks:** <exact test, type, lint, format, and validation commands that exist>
 - **Manual (if any):** <what to check by hand>
-- **Notebook:** <how to reproduce the MVP evidence; explicitly not a substitute for tests>
 
 ## Operational and compliance impact
 
@@ -109,7 +104,6 @@ REFACTOR/verification step. Non-behavior tasks use the cheapest validation-first
 
 - [ ] <measurable outcome 1>
 - [ ] <measurable outcome 2>
-- [ ] Notebook MVP completed and reproducible, or non-applicability justified
 - [ ] Every behavior was implemented test-first and focused plus affected suites pass
 - [ ] Configured type, lint, format, infrastructure, and workflow checks pass
 - [ ] Configured coverage threshold is met, if one exists

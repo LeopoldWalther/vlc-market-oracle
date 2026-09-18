@@ -26,12 +26,12 @@ Read these before changing code:
 | --- | --- | --- |
 | `dev/plans/technical/FEATURE-XXX-technical-plan.yaml` | **Primary** | The exact tasks, file boundaries, branches, and commit messages I follow. |
 | `dev/reviews/REVIEW-FEATURE-XXX.md` | **Approval and context** | Confirms the Approved verdict and records risks and decisions. |
-| `dev/plans/FEATURE-XXX-<slug>.md` | **Outcome** | Defines scope, success criteria, and notebook evidence. |
+| `dev/plans/FEATURE-XXX-<slug>.md` | **Outcome** | Defines scope, success criteria, and supporting evidence. |
 | `.github/copilot-instructions.md` | **Project rules** | Governs TDD, simplicity, data integrity, scraping, and operations. |
 
 The technical plan controls implementation details, but it cannot override project safety rules or
-an explicit user instruction. I use an MVP notebook to understand evidence and intended behavior; I
-do not copy exploratory code into production or treat notebook output as a test.
+an explicit user instruction. I use exploratory artifacts only to understand evidence and intended
+behavior; I do not copy exploratory code into production or treat its output as a test.
 
 ## Boundaries
 

@@ -18,6 +18,9 @@ until a use case is explicitly selected.
 
 ## Ground Truth and Priorities
 
+- Write every repository artifact in English: code, comments, docstrings, documentation, plans,
+    reviews, configuration, and commit messages. Chat with the user may be in another language, but
+    nothing written into the repository is.
 - This repository is evolving. Inspect the current code, tests, plans, and configuration before
     changing anything; do not describe planned components as already implemented.
 - Resolve conflicts in this order: correctness and data integrity, legal/ethical collection,
@@ -96,7 +99,9 @@ Apply a named pattern only when it removes present duplication or coupling. Like
 
 ## Scraping Rules
 
-- Respect applicable law, portal terms, robots directives, and configured rate limits. Do not bypass authentication, CAPTCHAs, access controls, or anti-bot protections.
+- Collect only publicly reachable pages. Do not bypass authentication or access controls, and do not access data that requires an account, a paid subscription, or a private API you are not entitled to use.
+- Anti-bot mitigation is allowed for public pages: managed scraping APIs, residential proxies, real browser engines, realistic headers, and human-like pacing are acceptable tools. Prefer a managed provider over hand-built fingerprint spoofing, and keep the chosen mechanism configurable and documented.
+- Respect applicable law, portal terms, and configured rate limits. Keep request volume modest enough that it does not degrade the portal's service, and stop collection from a source if the operator objects.
 - Use bounded retries with backoff and jitter only for transient failures. Set explicit timeouts and identify the collector as required by the approved access policy.
 - Keep HTTP acquisition separate from deterministic parsing so parsers can be tested from fixtures.
 - Detect layout/schema drift visibly. Quarantine invalid payloads with provenance and diagnostics instead of silently emitting partial data.

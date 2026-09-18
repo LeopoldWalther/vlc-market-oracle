@@ -10,7 +10,7 @@ GitHub Copilot agents. Each stage is a dedicated agent with one job and a clear 
 
 | Stage | Agent | Produces | Lives in |
 | --- | --- | --- | --- |
-| **Architect** | [`@architect`](agents/architect.agent.md) | Feature plan + applicable notebook MVP | `dev/plans/FEATURE-XXX-<slug>.md`, `src/notebooks/` |
+| **Architect** | [`@architect`](agents/architect.agent.md) | Feature plan | `dev/plans/FEATURE-XXX-<slug>.md` |
 | **Review** | [`@reviewer`](agents/reviewer.agent.md) | Review; technical plan when approved | `dev/reviews/REVIEW-FEATURE-XXX.md` and, after approval, `dev/plans/technical/FEATURE-XXX-technical-plan.yaml` |
 | **Implement** | [`@implementer`](agents/implementer.agent.md) | Tested code, clean commits | feature branches → PR |
 
@@ -18,10 +18,10 @@ GitHub Copilot agents. Each stage is a dedicated agent with one job and a clear 
 
 1. **Architect** — `@architect I want to <goal>`. The Architect explores the codebase, asks
    clarifying questions, and writes a `FEATURE-XXX` plan plus a row in
-   [`dev/plans/README.md`](../dev/plans/README.md). For a medium or large feature where runnable
-   evidence is useful, the Architect also creates one reduced, local Jupyter notebook MVP. The plan
-   records its result; the notebook does not replace production TDD.
-2. **Review** — `@reviewer Review FEATURE-XXX`. The Reviewer verifies the plan and notebook evidence
+   [`dev/plans/README.md`](../dev/plans/README.md). Where an assumption cannot be settled from the
+   repository, the Architect gathers evidence with the cheapest suitable spike and records the
+   result in the plan. A spike never replaces production TDD.
+2. **Review** — `@reviewer Review FEATURE-XXX`. The Reviewer verifies the plan and its evidence
    against the repository and always writes a review. Only an approved review emits the technical
    plan with atomic implementation tasks; other verdicts return a concrete correction or decision
    to the Architect or user.

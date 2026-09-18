@@ -12,7 +12,7 @@ for the verdict, and what must happen next. Do not repeat the feature-plan summa
 
 - **Plan and dependencies:** <paths and current status checked>
 - **Code, tests, data, and configuration:** <paths and exact commands with outcomes>
-- **Notebook MVP:** <path / not applicable; executed yes/no; observed result and limitation>
+- **Evidence reviewed:** <commands, spikes, or artifacts reproduced; observed result and limitation>
 - **Unverified assumptions:** <claim, why it was not verified, owner, and verification point / none>
 
 ## Gate result
@@ -21,7 +21,7 @@ for the verdict, and what must happen next. Do not repeat the feature-plan summa
 | --- | --- | --- |
 | Outcome and scope are measurable and bounded | Pass/Fail/N/A | <reference or action> |
 | Repository and dependency assumptions match reality | Pass/Fail/N/A | <reference or action> |
-| Notebook evidence is useful and reproducible | Pass/Fail/N/A | <reference or action> |
+| Supporting evidence is reproducible and sufficient | Pass/Fail/N/A | <reference or action> |
 | Design is the simplest adequate option | Pass/Fail/N/A | <reference or action> |
 | TDD slices and validation commands are executable | Pass/Fail/N/A | <reference or action> |
 | Data integrity, scraping, privacy, and security are addressed | Pass/Fail/N/A | <reference or action> |
