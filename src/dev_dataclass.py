@@ -1,7 +1,10 @@
 import asyncio
 import json
+import os
 import random
 import re
+import secrets
+import string
 from dataclasses import asdict, dataclass, field
 from typing import Optional
 from urllib.parse import unquote
@@ -314,6 +317,54 @@ async def extract_property_details(page, property_url: str) -> PropertyListing:
 
 
 # ---------------------------------------------------------------------------
+# Proxy Configuration (IProyal residential, sticky session)
+# ---------------------------------------------------------------------------
+
+USE_PROXY = True
+
+IPROYAL_HOST = "geo.iproyal.com"
+IPROYAL_PORT = 12321
+
+
+def build_iproyal_proxy_config(
+    username: str,
+    password: str,
+    country: str = "es",
+    lifetime_minutes: int = 15,
+    host: str = IPROYAL_HOST,
+    port: int = IPROYAL_PORT,
+) -> dict[str, str]:
+    """Build a Playwright proxy config with a fresh IProyal sticky session.
+
+    IProyal expects targeting parameters appended to the password, not the username.
+    Each call generates a new session id, which maps to a new exit IP.
+    killswitch-1 aborts the request instead of falling back to the real IP.
+    """
+    session_id = "".join(
+        secrets.choice(string.ascii_lowercase + string.digits) for _ in range(8)
+    )
+    return {
+        "server": f"http://{host}:{port}",
+        "username": username,
+        "password": (
+            f"{password}_country-{country}_session-{session_id}"
+            f"_lifetime-{lifetime_minutes}m_killswitch-1"
+        ),
+    }
+
+
+def load_iproyal_credentials() -> tuple[str, str]:
+    """Read IProyal credentials from the environment."""
+    username = os.environ.get("IPROYAL_USERNAME")
+    password = os.environ.get("IPROYAL_PASSWORD")
+    if not username or not password:
+        raise RuntimeError(
+            "IPROYAL_USERNAME and IPROYAL_PASSWORD must be set in the environment."
+        )
+    return username, password
+
+
+# ---------------------------------------------------------------------------
 # Main Execution Pipeline
 # ---------------------------------------------------------------------------
 
@@ -323,12 +374,21 @@ async def main():
     headers_gen = HeaderGenerator(browser="chrome", os="windows", device="desktop")
     custom_headers = headers_gen.generate()
     user_agent = custom_headers.get("user-agent")
-    
+
+    proxy_config = None
+    if USE_PROXY:
+        proxy_username, proxy_password = load_iproyal_credentials()
+        proxy_config = build_iproyal_proxy_config(proxy_username, proxy_password)
+        print(f"Proxy aktiv: {proxy_config['server']}")
+    else:
+        print("Proxy deaktiviert, direkte Verbindung.")
 
     async with async_playwright() as p:
+        # Chromium ignores context-level proxies unless the browser launches with one.
         browser = await p.chromium.launch(
             headless=False,
-            args=["--disable-blink-features=AutomationControlled"]
+            args=["--disable-blink-features=AutomationControlled"],
+            proxy={"server": "per-context"} if USE_PROXY else None,
         )
 
         context = await browser.new_context(
@@ -336,7 +396,8 @@ async def main():
             extra_http_headers=custom_headers,
             locale="es-ES",
             timezone_id="Europe/Madrid",
-            viewport={"width": 1920, "height": 1080}
+            viewport={"width": 1920, "height": 1080},
+            proxy=proxy_config
         )
 
         page = await context.new_page()
