@@ -8,9 +8,11 @@ registry, not a speculative roadmap: add a row only when its top-level plan exis
 
 | ID | Title | Status | Branch | Effort | Priority | Owner |
 | --- | --- | --- | --- | --- | --- | --- |
+| FEATURE-001 | [Region-wide Idealista collection with drift-resistant extraction](FEATURE-001-region-listing-crawl.md) | 🔵 Planned | `feature/region-listing-crawl` | L (~12h) | High | Leopold |
+| FEATURE-002 | [Bronze persistence of listing data in S3](FEATURE-002-s3-bronze-storage.md) | 🔵 Planned | `feature/s3-bronze-storage` | M (~5h) | High | Leopold |
+| FEATURE-003 | [Scheduled collection run as a container on AWS Fargate](FEATURE-003-scheduled-container-run.md) | 🔵 Planned | `feature/scheduled-container-run` | M (~6h) | Medium | Leopold |
 
-No feature plans are registered yet. The first real plan uses `FEATURE-001`; the illustrative
-technical-plan example is not a registered feature.
+The illustrative technical-plan example under `technical/` is not a registered feature.
 
 ### Status
 
@@ -25,14 +27,21 @@ Lambda, or Fargate unless that technology is itself the approved requirement.
 
 ## Dependencies
 
-Add a Mermaid graph only after at least two registered features have a real dependency. An edge
-`A --> B` means B cannot deliver its stated outcome until A is complete. Do not add ordering edges
-for convenience when the features are independently valuable.
+```mermaid
+graph LR
+    F001[FEATURE-001<br/>Region crawl + DOM resilience] --> F002[FEATURE-002<br/>S3 bronze storage]
+    F001 --> F003[FEATURE-003<br/>Scheduled Fargate run]
+    F002 --> F003
+```
+
+An edge `A --> B` means B cannot deliver its stated outcome until A is complete. FEATURE-002 needs
+the record contracts from FEATURE-001; FEATURE-003 needs both a runnable batch entry point and a
+storage target.
 
 ## Workflow at a glance
 
-1. **Architect** — `@architect <goal>` writes `FEATURE-XXX-<slug>.md`, creates one Notebook MVP when
-    it provides useful evidence, and registers the feature here.
+1. **Architect** — `@architect <goal>` writes `FEATURE-XXX-<slug>.md`, gathers evidence for any
+    assumption the repository cannot settle, and registers the feature here.
 2. **Review** — `@reviewer Review FEATURE-XXX` always emits the review and, only when approved, the
     executable technical plan.
 3. **Implement** — `@implementer Implement FEATURE-XXX` executes one approved TDD task at a time and
@@ -42,7 +51,7 @@ for convenience when the features are independently valuable.
 ## Where things live
 
 - **Plans:** `dev/plans/FEATURE-XXX-<slug>.md`
-- **Notebook MVPs, when applicable:** `src/notebooks/FEATURE-XXX-<slug>-mvp.ipynb`
+- **Exploratory notebooks, when a feature uses one:** `src/notebooks/`
 - **Reviews:** `dev/reviews/REVIEW-FEATURE-XXX.md`
 - **Technical plans (executable):** `dev/plans/technical/FEATURE-XXX-technical-plan.yaml`
 - **Implementation notes (optional):** `dev/plans/implementations/`
