@@ -24,6 +24,17 @@ class SearchPageParseResult(NamedTuple):
     next_page_url: Optional[str]
     result_count: Optional[int]
     drift: tuple[str, ...]
+    no_results: bool = False
+    page_cap_reached: bool = False
+
+
+class SearchPageRejected(Exception):
+    """Raised when a response is neither a valid search page nor a genuine no-results answer.
+
+    Review finding M4: a Datadome challenge and an empty search area both used to look like a
+    healthy run with zero listings. A response only counts as a valid page if it carries at least
+    one card or the result-count element; anything else is rejected rather than read as empty.
+    """
 
 
 def _first(tree: Tag, registry: selectors.SelectorRegistry, key: str) -> Optional[Tag]:
@@ -121,21 +132,47 @@ def _next_page_url(soup: Tag, page_url: str) -> Optional[str]:
 
 
 def parse_search_page(
-    html: str, target: SearchTarget, page_url: str, observed_at
+    html: str,
+    target: SearchTarget,
+    page_url: str,
+    observed_at,
+    *,
+    status_code: int = 200,
+    page_number: int = 1,
+    page_cap: int = 60,
 ) -> SearchPageParseResult:
-    """Parse one search results page into observations plus pagination and count metadata."""
+    """Parse one search results page into observations plus pagination and count metadata.
+
+    Idealista answers a zero-result filtered search with HTTP 404 (ZenRows relays it as RESP002),
+    never with an HTML no-results page - so status_code=404 is treated as a genuine, distinct
+    no-results outcome without ever inspecting the body. Any other status is parsed as HTML; a page
+    without either a card or the result-count element is rejected as a probable Datadome challenge.
+    """
+    if status_code == 404:
+        return SearchPageParseResult(
+            observations=(), next_page_url=None, result_count=0, drift=(), no_results=True
+        )
+
     soup = BeautifulSoup(html, "html.parser")
     page_parts = urlsplit(page_url)
     origin = f"{page_parts.scheme}://{page_parts.netloc}"
 
-    observations: list[ListingObservation] = []
-    drift: list[str] = []
     container = _first(soup, selectors.SEARCH_PAGE, "results_container") or soup
     cards: list[Tag] = []
     for selector in selectors.SEARCH_PAGE["card"]:
         cards = container.select(selector)
         if cards:
             break
+
+    count_text, _ = resolve_field(soup, selectors.SEARCH_PAGE["result_count"])
+    if not cards and count_text is None:
+        raise SearchPageRejected(
+            f"{page_url} carries neither a listing card nor the result-count element; "
+            "likely a blocked or malformed response"
+        )
+
+    observations: list[ListingObservation] = []
+    drift: list[str] = []
     for card in cards:
         observation, card_drift = _card_to_observation(card, target, origin, observed_at)
         if card_drift:
@@ -143,11 +180,14 @@ def parse_search_page(
         if observation is not None:
             observations.append(observation)
 
-    count_text, _ = resolve_field(soup, selectors.SEARCH_PAGE["result_count"])
+    page_cap_reached = page_number >= page_cap
+    next_page_url = None if page_cap_reached else _next_page_url(soup, page_url)
 
     return SearchPageParseResult(
         observations=tuple(observations),
-        next_page_url=_next_page_url(soup, page_url),
+        next_page_url=next_page_url,
         result_count=_int_from(count_text.split()[0] if count_text else None),
         drift=tuple(drift),
+        page_cap_reached=page_cap_reached,
     )
+

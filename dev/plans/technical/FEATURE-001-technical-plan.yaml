@@ -352,7 +352,7 @@ technical_plan:
         article.item[data-element-id] OR the result-count element span#h1-container__text. The
         head-only challenge has neither and is rejected. Also covers the last page, a card without a
         price reduction, and the 60-page cap.
-      status: "not_started"
+      status: "done"
       complexity: "medium"
       estimated_hours: 1.5
       depends_on: ["1.3"]
