@@ -476,6 +476,53 @@ approximately three Free months. `--credit-budget` additionally caps every singl
 
 ## Progress log
 
+- **2026-09-19 — Task 0.3 executed (live evidence).** Answers to the spike questions, all from
+  captured payloads under `data/raw/idealista/search/` (gitignored):
+  1. **`js_render` is required — Question 1 answered NO.** Without it ZenRows returns
+     `422 RESP001 "Could not get content. try enabling javascript rendering for a higher success
+     rate"`. With it the same URL returns 30 cards. The 25-credit assumption stands and the
+     backfill keeps its ~2-month schedule; there is no cheaper mode.
+  2. **`422 RESP001` is transient and billed at zero** (`X-Request-Cost: 0`). The identical request
+     that failed succeeded on a later attempt. **This must be added to the retryable set in task
+     2.1, which currently lists only 429/5xx.** Retrying a 422 is free, so the retry is pure upside.
+  3. **`wait_for` materially improves reliability.** `js_render` + `premium_proxy` alone failed
+     intermittently; adding `wait_for=article.item` (or `div.listing-top` for pages that may have no
+     cards) succeeded on the first attempt every time. `mode=auto` also worked. Recommend
+     `wait_for` as the default for search pages.
+  4. **The block signature is HTTP 200 with a head-only document** — ~5.5 KB, a real `<title>`, and
+     an empty `<body>`. Critically, `window.ddjskey` and `dd.idealista.com` appear on **good** pages
+     too, so they are *not* challenge markers. This confirms M4: the only safe test is the positive
+     one. Captured as `tests/fixtures/idealista_search_page_challenge.html`.
+  5. **The canonical sort URL is `?ordenado-por=fecha-publicacion-desc`**, read from the page's own
+     filter links — not the bare `?fecha-publicacion-desc` seen in the address bar. This matters:
+     with the **canonical** form `li.next` **preserves** the sort
+     (`/…/pagina-2.htm?ordenado-por=fecha-publicacion-desc`), while with the **bare** form it does
+     **not** (`/…/pagina-2.htm`). Use the canonical form; the M8 caveat then resolves itself, and
+     asserting the sort per page stays cheap insurance.
+  6. **Volumes confirmed from the pages themselves:** sale **215**, rent **42** (30 on page 1 plus
+     12 on page 2), matching the municipality index exactly.
+  7. **Confirmed selectors.** Result count: `span#h1-container__text` ("42 casas y pisos en alquiler
+     en L'Eliana, València"). Price row: `span.item-price` (current), `span.pricedown_price`
+     (previous), `span.pricedown_icon` (drop %), and `span.item-price-by-area` (€/m², **sale pages
+     only**, 29 of 30 cards). The parser must key on these classes and never on "the second price in
+     the row", or a sale card's €/m² would be read as a previous price. Freshness badge (L5):
+     `span.item-detail.txt-highlight-red`, e.g. "7 horas"; present on 2 of 4 fixture cards, so both
+     branches are testable.
+  8. **`data-element-id` equals the `a.item-link` href id** on every card in the committed
+     fixtures — L1 verified in the fixture itself.
+
+  **Open, blocking one acceptance criterion:** `tests/fixtures/idealista_search_page_empty.html`
+  was **not** produced. Every attempt to force a zero-result search either hit an invalid filter URL
+  (404) or returned the head-only challenge. The real no-results marker text is therefore still
+  unknown and task 1.4 cannot assert it yet. Cheapest fix, at zero credits: open any search with an
+  impossible filter in a browser and save the page, per M3's fixture/spike decoupling. Task 0.3
+  stays `in_progress` until then.
+
+  **Credit use:** roughly 15 billed requests, far above the ~4 the task estimated. Failed requests
+  cost nothing, but the hunt for a zero-result page and the fixture-coverage rework were not
+  budgeted. ZenRows reported `X-Request-Cost: 0.025` per successful request; check the dashboard for
+  the authoritative monthly figure before task 4.4.
+
 - **2026-09-18** — Plan created. Verified up front: no JSON-LD or `utag_data` on the detail page, so
   a selector registry rather than structured extraction.
 - **2026-09-18** — Open questions decided autonomously while the user was unavailable (see "Decided

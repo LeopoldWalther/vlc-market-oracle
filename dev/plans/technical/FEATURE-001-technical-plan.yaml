@@ -134,12 +134,15 @@ technical_plan:
         Record the answer in the feature plan's progress log together with the js_render decision
         and the confirmed no-results marker text for task 1.4. Volumes are already authoritative:
         215 sale and 42 rent listings, 8 + 2 = 10 search pages.
-      status: "not_started"
+      status: "in_progress"
       complexity: "medium"
       estimated_hours: 1
       depends_on: ["0.2"]
       branch: "feature/region-listing-crawl/0.3-search-page-evidence"
       commit_message: "test: add reduced Idealista search page fixtures from captured evidence"
+      # 2026-09-19: partially executed. Three of four fixtures captured; the zero-result page could
+      # not be obtained live (every attempt returned 404 or the head-only challenge), so the real
+      # no-results marker is still unknown. Remaining work is a zero-credit browser capture.
       acceptance_criteria:
         - "tests/fixtures/idealista_search_page.html holds at least 3 article.item[data-element-id] cards and the div.pagination block"
         - "tests/fixtures/idealista_search_page_last.html has no li.next entry"
