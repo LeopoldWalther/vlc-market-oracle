@@ -6,7 +6,7 @@ persists these records as-is, so their field names are the shared contract with 
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Protocol, runtime_checkable
 
 _OPERATIONS = frozenset({"sale", "rent"})
 _MAX_LISTINGS_PER_SEARCH = 1_800
@@ -27,6 +27,32 @@ def _require_utc(value: datetime, field_name: str) -> None:
 def _require_non_negative(value: Optional[int], field_name: str) -> None:
     if value is not None and value < 0:
         raise ValueError(f"{field_name} must not be negative, got {value}")
+
+
+@dataclass(frozen=True)
+class FetchOutcome:
+    """One completed HTML retrieval, whatever the transport behind it was.
+
+    ``status_code`` is carried rather than raised on, because Idealista answers a zero-result
+    search with 404: that is a fact about the market, not a transport failure.
+    """
+
+    url: str
+    status_code: int
+    html: str
+    credits_spent: int
+
+
+@runtime_checkable
+class HtmlFetcher(Protocol):
+    """The crawler's only view of HTML retrieval.
+
+    Keeping it this narrow lets the crawler be tested without network access, lets a replay run
+    read stored payloads instead, and lets FEATURE-003 substitute its own implementation.
+    """
+
+    def fetch(self, url: str) -> FetchOutcome:
+        """Return the HTML for ``url``."""
 
 
 @dataclass(frozen=True)

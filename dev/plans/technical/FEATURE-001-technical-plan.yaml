@@ -497,7 +497,7 @@ technical_plan:
         ~12 search pages per pass and at most ~148 detail pages per month; a thread pool is
         speculative complexity here and works against the required human-like pacing. Adding
         concurrency later is contained and additive.
-      status: "not_started"
+      status: "done"
       complexity: "medium"
       estimated_hours: 2
       depends_on: ["1.1"]
@@ -508,7 +508,7 @@ technical_plan:
         - "Each request adds 25 credits with js_render and 10 without to the run counter"
         - "A budget of N credits permits exactly N // cost_per_request requests, then stops"
         - "The stop is controlled: stopped_reason is 'credit_budget_exhausted' and the process does not exit with an error"
-        - "429 and 5xx are retried with bounded backoff and jitter; 4xx other than 429 is not retried"
+        - "429, 5xx and the transient ZenRows 422/RESP001 are retried with bounded backoff and jitter; 404/RESP002 is a zero-result fact and any other 4xx is not retried"
         - "Requests are issued sequentially with a configurable pause; no thread pool is introduced"
         - "The existing 6 tests in tests/test_zenrows_source.py stay green"
       tdd:
