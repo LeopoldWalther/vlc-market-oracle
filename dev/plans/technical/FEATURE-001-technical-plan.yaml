@@ -186,7 +186,7 @@ technical_plan:
         date a listing published before collection started, so it closes the time-on-market cold
         start - but its exact meaning (published or updated) is unestablished, so Bronze stores the
         raw text and never interprets it.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 1
       depends_on: ["0.2"]
