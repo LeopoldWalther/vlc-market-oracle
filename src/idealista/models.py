@@ -163,8 +163,18 @@ class ListingDetail:
 class CrawlReport:
     """The run report for one search target.
 
-    Deliberately minimal: later tasks (coverage thresholds, the credit ledger, pagination) each add
-    the fields their own behavior needs.
+    Built once from a run's results by `crawl_report.build_crawl_report`, not mutated field by
+    field; later tasks (the credit ledger, pagination) add further fields as their own behavior
+    needs them.
     """
 
     target: str
+    requests: int = 0
+    credits_spent: int = 0
+    pages: int = 0
+    records: int = 0
+    quarantined: int = 0
+    errors_by_category: dict[str, int] = field(default_factory=dict)
+    coverage: dict[str, float] = field(default_factory=dict)
+    failed: bool = False
+    failed_fields: tuple[str, ...] = field(default_factory=tuple)

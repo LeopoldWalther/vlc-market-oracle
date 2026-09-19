@@ -447,7 +447,7 @@ technical_plan:
         run with a non-zero exit code and names the affected fields, so a layout change is loud
         rather than a slow erosion of the dataset. Thresholds are configuration and are calibrated
         from the first real run rather than guessed.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 1
       depends_on: ["1.1"]
