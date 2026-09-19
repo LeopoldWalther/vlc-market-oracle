@@ -233,7 +233,7 @@ technical_plan:
         match together with the name of the selector that matched, so drift is attributable. A field
         with no match returns None and is recorded in missing_fields. This is the mechanism that
         turns a layout change from a code change into a data change.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 1
       depends_on: ["0.2"]
