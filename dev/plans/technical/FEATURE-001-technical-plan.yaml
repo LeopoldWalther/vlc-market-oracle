@@ -73,7 +73,7 @@ technical_plan:
         Playwright notebook test modules have been failing since the last notebook change. Removing
         both notebooks and their tests, plus the unused dev_dataclass module, leaves one collection
         path. Reproduced in an isolated copy: the result is 17 tests, OK.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 1
       depends_on: []

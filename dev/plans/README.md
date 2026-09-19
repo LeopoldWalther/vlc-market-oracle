@@ -8,7 +8,7 @@ registry, not a speculative roadmap: add a row only when its top-level plan exis
 
 | ID | Title | Status | Branch | Effort | Priority | Owner |
 | --- | --- | --- | --- | --- | --- | --- |
-| FEATURE-001 | [Region-wide Idealista collection with drift-resistant extraction](FEATURE-001-region-listing-crawl.md) | 🔵 Planned | `feature/region-listing-crawl` | L (~12h) | High | Leopold |
+| FEATURE-001 | [Region-wide Idealista collection with drift-resistant extraction](FEATURE-001-region-listing-crawl.md) | 🟡 In progress | `feature/region-listing-crawl` | L (~12h) | High | Leopold |
 | FEATURE-002 | [Bronze persistence of listing data in S3](FEATURE-002-s3-bronze-storage.md) | 🔵 Planned | `feature/s3-bronze-storage` | M (~5h) | High | Leopold |
 | FEATURE-003 | [Scheduled collection run as a container on AWS Fargate](FEATURE-003-scheduled-container-run.md) | 🔵 Planned | `feature/scheduled-container-run` | M (~6h) | Medium | Leopold |
 
