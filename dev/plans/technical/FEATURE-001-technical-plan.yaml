@@ -390,7 +390,7 @@ technical_plan:
         or sqm_built instead of writing it. Drop price_per_sqm (derived, and a float where money
         must not be); add operation, municipality, district, observed_at and extraction_version.
         The 8 existing parser tests must stay green through the refactor.
-      status: "not_started"
+      status: "done"
       complexity: "medium"
       estimated_hours: 2
       depends_on: ["1.1", "1.2"]

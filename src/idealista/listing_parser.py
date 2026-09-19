@@ -1,15 +1,27 @@
-"""Deterministic extraction of an Idealista listing snapshot from static HTML.
+"""Deterministic extraction of an Idealista listing detail page from static HTML.
 
 Pure functions only: no network, no browser. Callers supply HTML from a source
 adapter (e.g. ZenRows) or from a recorded fixture.
 """
 
 import re
-from dataclasses import dataclass, field
 from typing import Optional
 from urllib.parse import unquote
 
 from bs4 import BeautifulSoup, Tag
+
+from src.idealista import selectors
+from src.idealista.models import ListingDetail
+from src.idealista.selectors import resolve_field
+
+
+class ListingRejected(Exception):
+    """Raised when a detail page lacks a required field.
+
+    A half-filled record is worse than none: it looks healthy downstream while silently carrying a
+    gap. The caller quarantines the raw HTML instead.
+    """
+
 
 _DIRECTIONS = (
     "noreste",
@@ -21,47 +33,6 @@ _DIRECTIONS = (
     "este",
     "oeste",
 )
-
-
-@dataclass
-class PropertyListing:
-    url: str
-    idealista_id: str
-
-    price_eur: Optional[int] = None
-    prev_price_eur: Optional[int] = None
-    price_drop_pct: Optional[float] = None
-    price_per_sqm: Optional[float] = None
-    community_fee_eur_month: Optional[int] = None
-
-    sqm_built: Optional[int] = None
-    sqm_usable: Optional[int] = None
-
-    rooms: Optional[int] = None
-    bathrooms: Optional[int] = None
-    floor: Optional[str] = None
-    is_exterior: Optional[bool] = None
-    orientation: list[str] = field(default_factory=list)
-    has_elevator: bool = False
-    has_balcony: bool = False
-    has_parking: bool = False
-    has_ac: bool = False
-    has_fitted_wardrobes: bool = False
-    has_heating: Optional[bool] = None
-    heating_type: Optional[str] = None
-
-    title: str = ""
-    location: str = ""
-    description: str = ""
-    neighborhood: Optional[str] = None
-    district: Optional[str] = None
-    city: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    year_built: Optional[int] = None
-    condition: Optional[str] = None
-
-    raw_features: list[str] = field(default_factory=list)
 
 
 def _extract_idealista_id_from_url(url: str) -> str:
@@ -193,11 +164,6 @@ def parse_features(raw_features: list[str]) -> dict:
     return result
 
 
-def _text_of(soup: BeautifulSoup, selector: str) -> str:
-    element = soup.select_one(selector)
-    return element.get_text(" ", strip=True) if element else ""
-
-
 def _extract_raw_features(soup: BeautifulSoup) -> list[str]:
     items = soup.select("[class*='details-property_features'] li")
     return [text for item in items if (text := item.get_text(" ", strip=True))]
@@ -264,29 +230,64 @@ def _extract_description(soup: BeautifulSoup) -> str:
     return "\n\n".join(parts)
 
 
-def parse_listing_html(html: str, listing_url: str) -> PropertyListing:
-    """Parse one Idealista detail page into a listing snapshot.
+def parse_listing_html(
+    html: str,
+    listing_url: str,
+    *,
+    operation: str,
+    municipality: str,
+    district: Optional[str],
+    observed_at,
+    extraction_version: str,
+) -> ListingDetail:
+    """Parse one Idealista detail page into a listing detail record.
 
-    Missing fields stay ``None`` instead of raising, so drift is visible in the
-    snapshot and the raw HTML remains replayable.
+    Fields resolve through the ordered selector registry, so a renamed class falls back instead of
+    silently yielding None. Every unresolved field is named in ``missing_fields``. A record missing
+    a required field is rejected rather than written half-filled.
     """
     soup = BeautifulSoup(html, "html.parser")
 
     raw_features = _extract_raw_features(soup)
     features = parse_features(raw_features)
 
-    price_eur = _parse_int_from_text(_text_of(soup, ".info-data-price"))
+    resolved: dict[str, Optional[str]] = {}
+    missing_fields: list[str] = []
+    for field_name, candidates in selectors.DETAIL_PAGE.items():
+        text, _ = resolve_field(soup, candidates)
+        resolved[field_name] = text
+        if text is None:
+            missing_fields.append(field_name)
+
+    price_eur = _parse_int_from_text(resolved["price_eur"])
     sqm_built = features["sqm_built"]
-    neighborhood, district, city = _extract_location_parts(soup)
+    idealista_id = _extract_idealista_id_from_url(listing_url)
+
+    for name, value in (
+        ("idealista_id", idealista_id),
+        ("price_eur", price_eur),
+        ("sqm_built", sqm_built),
+    ):
+        if not value:
+            raise ListingRejected(
+                f"{listing_url} is missing the required field {name}; quarantined instead of "
+                "written as a partial record"
+            )
+
+    neighborhood, page_district, city = _extract_location_parts(soup)
     latitude, longitude = _extract_coordinates(soup, html)
 
-    return PropertyListing(
+    return ListingDetail(
         url=listing_url,
-        idealista_id=_extract_idealista_id_from_url(listing_url),
+        idealista_id=idealista_id,
+        operation=operation,
+        municipality=municipality,
+        district=district,
+        observed_at=observed_at,
+        extraction_version=extraction_version,
         price_eur=price_eur,
-        prev_price_eur=_parse_int_from_text(_text_of(soup, ".pricedown_price")),
-        price_drop_pct=_parse_pct_from_text(_text_of(soup, ".pricedown_icon")),
-        price_per_sqm=(price_eur / sqm_built) if price_eur and sqm_built else None,
+        prev_price_eur=_parse_int_from_text(resolved["prev_price_eur"]),
+        price_drop_pct=_parse_pct_from_text(resolved["price_drop_pct"]),
         community_fee_eur_month=_extract_community_fee_eur_month(soup),
         sqm_built=sqm_built,
         sqm_usable=features["sqm_usable"],
@@ -294,7 +295,7 @@ def parse_listing_html(html: str, listing_url: str) -> PropertyListing:
         bathrooms=features["bathrooms"],
         floor=features["floor"],
         is_exterior=features["is_exterior"],
-        orientation=features["orientation"],
+        orientation=tuple(features["orientation"]),
         has_elevator=features["has_elevator"],
         has_balcony=features["has_balcony"],
         has_parking=features["has_parking"],
@@ -302,15 +303,16 @@ def parse_listing_html(html: str, listing_url: str) -> PropertyListing:
         has_fitted_wardrobes=features["has_fitted_wardrobes"],
         has_heating=features["has_heating"],
         heating_type=features["heating_type"],
-        title=_text_of(soup, ".main-info__title-main"),
-        location=_text_of(soup, ".main-info__title-minor"),
+        title=resolved["title"] or "",
+        location=resolved["location"] or "",
         description=_extract_description(soup),
         neighborhood=neighborhood,
-        district=district,
+        page_district=page_district,
         city=city,
         latitude=latitude,
         longitude=longitude,
         year_built=features["year_built"],
         condition=features["condition"],
-        raw_features=raw_features,
+        raw_features=tuple(raw_features),
+        missing_fields=tuple(missing_fields),
     )

@@ -80,8 +80,8 @@ class ListingObservation:
 class ListingDetail:
     """The full attribute set of one listing, written once per listing_id.
 
-    Mirrors PropertyListing plus provenance fields; price_per_sqm is deliberately absent because it
-    is derived and, as a float, incompatible with the money rule.
+    price_per_sqm is deliberately absent because it is derived and, as a float, incompatible with
+    the money rule.
     """
 
     url: str
@@ -117,6 +117,9 @@ class ListingDetail:
     location: str = ""
     description: str = ""
     neighborhood: Optional[str] = None
+    # district above is the crawl context and joins with ListingObservation; page_district is what
+    # the listing itself states. Conflating them would make that join meaningless.
+    page_district: Optional[str] = None
     city: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None

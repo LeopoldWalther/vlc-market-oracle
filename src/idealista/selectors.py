@@ -10,6 +10,18 @@ from bs4 import Tag
 
 SelectorRegistry = dict[str, list[str]]
 
+# Detail-page fields. The second entry of each list is a deliberate structural fallback: it survives
+# a renamed class, which is the most common form of Idealista drift.
+DETAIL_PAGE: SelectorRegistry = {
+    # [class*='info-data-price'] must not be widened to [class*='price'], which would also match
+    # pricedown_price and silently read the previous price as the current one.
+    "price_eur": [".info-data-price", "[class*='info-data-price']"],
+    "prev_price_eur": [".pricedown_price", "[class*='pricedown_price']"],
+    "price_drop_pct": [".pricedown_icon", "[class*='pricedown_icon']"],
+    "title": [".main-info__title-main", "[class*='title-main']"],
+    "location": [".main-info__title-minor", "[class*='title-minor']"],
+}
+
 
 class ResolvedField(NamedTuple):
     text: Optional[str]
