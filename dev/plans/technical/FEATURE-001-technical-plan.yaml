@@ -547,7 +547,7 @@ technical_plan:
         A second HtmlFetcher implementation that reads the stored raw payloads instead of calling
         ZenRows. This is what makes parser changes testable against real pages at zero cost and what
         keeps every record reproducible from its raw HTML.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 1
       depends_on: ["2.1"]
