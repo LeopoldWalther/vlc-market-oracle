@@ -328,8 +328,28 @@ Build, becomes the relevant option. Worth knowing before committing to city-wide
   explicit no-results marker from the result-count element. Anything else is quarantined and counted
   as an error, never as an empty area. Derive the concrete marker text from the stored HTML in task
   0.3 and put it in the selector registry, where a change is a data edit.
-- **Owner / verification:** Reviewer — **resolved in this review**. Technical-plan task 1.4, with
-  three fixtures: a last page, an empty result page, and a challenge page.
+- **Owner / verification:** Reviewer — **resolved in this review**, then **amended on 2026-09-19 by
+  task 0.3 evidence**. The premise that a zero-result search returns HTTP 200 with a no-results
+  marker is **wrong**: Idealista answers a zero-result filtered search with **HTTP 404**, relayed by
+  ZenRows as `RESP002`. Proven by a controlled pair on the same two filter slugs — in the order the
+  site itself generates (`con-chalets,metros-cuadrados-mas-de_900`, one match) the response is 200
+  on every attempt, while the combination with no matches (`con-chalets,de-un-dormitorio`) returns
+  404 on every attempt. Order is therefore irrelevant and the status carries the meaning.
+
+  The finding **strengthens** M4 rather than weakening it, because the distinction no longer depends
+  on matching Spanish marker text that could change with any copy edit. The measured taxonomy:
+
+  | Response | Meaning | Handling |
+  | --- | --- | --- |
+  | 200 + full page with `span#h1-container__text` | valid search page | parse; any card count |
+  | 200 + head-only document, empty `<body>` (~5.5 KB) | Datadome challenge | quarantine, count as error |
+  | 404 / `RESP002` | the search genuinely has no results | distinct outcome, not an error |
+  | 422 / `RESP001` | ZenRows could not fetch | retry; billed at zero |
+
+  Note `window.ddjskey` and `dd.idealista.com` appear on **good** pages too, so neither is a
+  challenge marker — the empty body is. Task 1.4 now keys on this taxonomy, its
+  `idealista_search_page_empty.html` fixture is dropped as unobtainable by construction, and task
+  2.1's retry set gains 422/RESP001.
 
 ### 🟡 M5 — A permanently unparseable detail page is re-fetched on every run, forever
 
@@ -581,7 +601,9 @@ Build, becomes the relevant option. Worth knowing before committing to city-wide
   after publication — accepted by the user, with `observed_at` and `extraction_version` recorded so a
   targeted re-fetch remains possible. Task 0.3 makes live requests and spends ~100 of 5,000 monthly
   credits; it is the only task that touches the network and requires the user's go-ahead.
-- **Technical plan:** emitted, and updated on 2026-09-19 for M8 and M9
+- **Technical plan:** emitted, updated on 2026-09-19 for M8 and M9, and amended the same day
+  after task 0.3 measured the response taxonomy (M4: no empty-result fixture; task 2.1: 422 is
+  retryable)
 
 ## Next step
 

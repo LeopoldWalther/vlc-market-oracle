@@ -134,22 +134,24 @@ technical_plan:
         Record the answer in the feature plan's progress log together with the js_render decision
         and the confirmed no-results marker text for task 1.4. Volumes are already authoritative:
         215 sale and 42 rent listings, 8 + 2 = 10 search pages.
-      status: "in_progress"
+      status: "done"
       complexity: "medium"
       estimated_hours: 1
       depends_on: ["0.2"]
       branch: "feature/region-listing-crawl/0.3-search-page-evidence"
       commit_message: "test: add reduced Idealista search page fixtures from captured evidence"
-      # 2026-09-19: partially executed. Three of four fixtures captured; the zero-result page could
-      # not be obtained live (every attempt returned 404 or the head-only challenge), so the real
-      # no-results marker is still unknown. Remaining work is a zero-credit browser capture.
+      # 2026-09-19: executed. The fourth fixture was dropped on evidence, not skipped: a
+      # zero-result search does not render an empty page, Idealista answers it with HTTP 404
+      # (ZenRows RESP002), proven by a controlled pair - same filter slugs in the order the site
+      # itself generates return 200, the combination with no matches returns 404 on every attempt.
+      # Task 1.4 now keys on the response taxonomy instead of a no-results marker.
       acceptance_criteria:
         - "tests/fixtures/idealista_search_page.html holds at least 3 article.item[data-element-id] cards and the div.pagination block"
         - "tests/fixtures/idealista_search_page_last.html has no li.next entry"
-        - "tests/fixtures/idealista_search_page_empty.html carries the real no-results marker and zero cards"
+        - "A zero-result search is proven to answer HTTP 404/RESP002, so no empty-result fixture exists"
         - "tests/fixtures/idealista_search_page_challenge.html is a captured Datadome challenge, or a minimal stand-in if none was served"
         - "No fixture contains an agency name, phone number, email address or personal identifier"
-        - "The feature plan's progress log records the js_render answer, the no-results marker and the real result counts per operation"
+        - "The feature plan's progress log records the js_render answer, the response taxonomy and the real result counts per operation"
         - "Raw captures live under data/raw/idealista/search/ and are not committed (/data/* is gitignored)"
       tdd: null
       validation_commands:
@@ -159,7 +161,6 @@ technical_plan:
       allowed_files:
         - "tests/fixtures/idealista_search_page.html"
         - "tests/fixtures/idealista_search_page_last.html"
-        - "tests/fixtures/idealista_search_page_empty.html"
         - "tests/fixtures/idealista_search_page_challenge.html"
         - "dev/plans/FEATURE-001-region-listing-crawl.md"
       forbidden_files:
@@ -171,7 +172,6 @@ technical_plan:
       files_to_create:
         - "tests/fixtures/idealista_search_page.html"
         - "tests/fixtures/idealista_search_page_last.html"
-        - "tests/fixtures/idealista_search_page_empty.html"
         - "tests/fixtures/idealista_search_page_challenge.html"
       files_to_modify:
         - "dev/plans/FEATURE-001-region-listing-crawl.md"
@@ -336,13 +336,22 @@ technical_plan:
     - id: "1.4"
       title: "Separate an empty search area from a blocked page"
       description: |
-        Review finding M4, the most consequential correction in this plan. A Datadome challenge and
-        a genuinely empty area both return HTTP 200 with zero cards; as originally specified the
-        crawler would record a block as "this area has no listings" and report a healthy run.
+        Review finding M4, the most consequential correction in this plan - amended on 2026-09-19 by
+        task 0.3 evidence. M4 assumed a zero-result search returns HTTP 200 with a no-results
+        marker. It does not: Idealista answers a zero-result filtered search with HTTP 404, relayed
+        by ZenRows as RESP002. There is therefore no no-results marker and no empty-result fixture;
+        the distinction is carried by the response itself, which is stronger than any text match.
+
+        The taxonomy, all four branches measured live in task 0.3:
+          200 + full page with span#h1-container__text  -> valid; card count may be anything
+          200 + head-only document, empty <body>        -> Datadome challenge -> quarantine
+          404 / RESP002                                 -> the search genuinely has no results
+          422 / RESP001                                 -> ZenRows could not fetch; retry, billed 0
+
         Make validity positive: a page is a valid search page only if it carries at least one
-        article.item[data-element-id] OR the explicit no-results marker. Anything else is rejected
-        for quarantine and counted as an error. Also covers the last page, a card without a price
-        reduction, and the 60-page cap.
+        article.item[data-element-id] OR the result-count element span#h1-container__text. The
+        head-only challenge has neither and is rejected. Also covers the last page, a card without a
+        price reduction, and the 60-page cap.
       status: "not_started"
       complexity: "medium"
       estimated_hours: 1.5
@@ -351,8 +360,9 @@ technical_plan:
       commit_message: "feat(idealista): reject blocked search pages instead of reading them as empty"
       acceptance_criteria:
         - "The last-page fixture returns next_page_url None and does not raise"
-        - "The empty-result fixture returns zero observations and is treated as a valid page"
         - "The challenge fixture raises SearchPageRejected naming the reason; it is never reported as an empty area"
+        - "A page carrying span#h1-container__text but zero cards is valid and yields zero observations"
+        - "A 404/RESP002 response is surfaced as no-results, distinct from both a block and an error"
         - "A card without a price reduction yields prev_price_eur None and price_drop_pct None"
         - "The page cap is a parameter defaulting to 60, so the test proves the stop with 3 pages"
         - "Reaching the cap is reported as page_cap_reached for that target rather than silently truncating"

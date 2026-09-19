@@ -511,12 +511,32 @@ approximately three Free months. `--credit-budget` additionally caps every singl
   8. **`data-element-id` equals the `a.item-link` href id** on every card in the committed
      fixtures — L1 verified in the fixture itself.
 
-  **Open, blocking one acceptance criterion:** `tests/fixtures/idealista_search_page_empty.html`
-  was **not** produced. Every attempt to force a zero-result search either hit an invalid filter URL
-  (404) or returned the head-only challenge. The real no-results marker text is therefore still
-  unknown and task 1.4 cannot assert it yet. Cheapest fix, at zero credits: open any search with an
-  impossible filter in a browser and save the page, per M3's fixture/spike decoupling. Task 0.3
-  stays `in_progress` until then.
+  9. **A zero-result search returns HTTP 404, not an empty page — task 0.3 is therefore complete
+     with three fixtures, not four.** What first looked like a blocker was the answer. The repeated
+     404s were not invalid URLs: a controlled pair on the *same* two filter slugs settles it. In the
+     order the site itself generates, `con-chalets,metros-cuadrados-mas-de_900` (one match) answers
+     **200** on every attempt; `con-chalets,de-un-dormitorio` (no match, the only >900 m² rental has
+     5 bedrooms) answers **404** on every attempt. Order is irrelevant; the status carries the
+     meaning. ZenRows relays it as `RESP002` with the explicit text "The requested URL page returned
+     a 404 HTTP Status Code", so it is Idealista's 404, not the provider's.
+
+     This **strengthens** M4. The distinction no longer depends on matching Spanish marker text that
+     any copy edit could break:
+
+     | Response | Meaning | Handling |
+     | --- | --- | --- |
+     | 200 + full page with `span#h1-container__text` | valid search page | parse; any card count |
+     | 200 + head-only document, empty `<body>` | Datadome challenge | quarantine, count as error |
+     | 404 / `RESP002` | the search genuinely has no results | distinct outcome, not an error |
+     | 422 / `RESP001` | ZenRows could not fetch | retry; billed at zero |
+
+     Consequences, applied: task 1.4 keys on this taxonomy and its empty-result fixture is dropped
+     as unobtainable by construction; task 2.1's retry set gains 422/RESP001; for a configured
+     target with `expected_listings > 0` a 404 is itself a drift signal, since such a target must
+     never legitimately be empty.
+
+  **Task 0.3 is complete.** Three fixtures committed, every spike question answered, no open
+  dependency for Phase 1.
 
   **Credit use:** roughly 15 billed requests, far above the ~4 the task estimated. Failed requests
   cost nothing, but the hunt for a zero-result page and the fixture-coverage rework were not
