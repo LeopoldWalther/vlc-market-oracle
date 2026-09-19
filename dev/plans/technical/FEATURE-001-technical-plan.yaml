@@ -592,7 +592,7 @@ technical_plan:
         not roll over. Derive the month-to-date spend from the run reports that are already written
         - they are the ledger, so this adds no new state file and no new failure mode. The per-run
         budget stays as the second, tighter bound.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 1
       depends_on: ["2.1", "1.6"]
