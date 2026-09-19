@@ -756,6 +756,9 @@ technical_plan:
         - "A rejected detail page writes its raw HTML and diagnostics to the quarantine location"
         - "An id that failed 3 times is excluded from selection on the next run"
         - "The number of ids excluded by the cap appears in the run report"
+        - "CARRIED OVER FROM 2.3: CrawlReport gains an optional stopped_reason, defaulting to None"
+        - "CARRIED OVER FROM 2.3: a run ended early by CreditBudgetExhausted still writes its
+          report, with stopped_reason set to the exception's reason"
       tdd:
         red:
           test_file: "tests/test_crawl_failure_tolerance.py"
@@ -773,6 +776,7 @@ technical_plan:
       allowed_files:
         - "src/idealista/region_crawler.py"
         - "src/idealista/crawl_report.py"
+        - "src/idealista/models.py"
         - "tests/test_crawl_failure_tolerance.py"
       forbidden_files:
         - "src/idealista/zenrows_source.py"
@@ -784,6 +788,7 @@ technical_plan:
       files_to_modify:
         - "src/idealista/region_crawler.py"
         - "src/idealista/crawl_report.py"
+        - "src/idealista/models.py"
 
     - id: "3.4"
       title: "Stage the initial backfill across months by priority"
@@ -809,6 +814,10 @@ technical_plan:
         - "Selection follows page order, so earlier search pages are captured first"
         - "The remaining 6 ids are still selected on the following run"
         - "The run report records the backlog size before and after the run"
+        - "CARRIED OVER FROM 2.3: the run budget comes from credit_ledger.binding_budget, so the
+          monthly remainder can bind instead of the per-run budget"
+        - "CARRIED OVER FROM 2.3: when the monthly remainder binds, the partial report carries
+          stopped_reason 'monthly_budget_exhausted'"
       tdd:
         red:
           test_file: "tests/test_staged_backfill.py"
@@ -1090,3 +1099,8 @@ technical_plan:
       that plan's layout changes, change task 4.1 with it."
     - "Keep derived values out of Bronze: no price_per_sqm, no first_seen, no days_on_market. They
       belong in Silver, where facts and derivations stay separated."
+    - "OPEN, CARRIED OVER FROM TASK 2.3: the criterion 'the stop sets stopped_reason and writes a
+      partial report' could not be met inside 2.3. CrawlReport has no stopped_reason field and
+      models.py is outside that task's allowed_files, so 2.3 delivers only the pure ledger and the
+      binding_budget decision. Task 3.3 adds the field and records it; task 3.4 wires the monthly
+      remainder into the run. The item stays open until both are done."
