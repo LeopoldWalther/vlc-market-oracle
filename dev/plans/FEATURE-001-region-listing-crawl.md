@@ -132,6 +132,25 @@ analysis is iterative and the stored raw HTML is examined repeatedly from differ
   does the card really expose the previous price and drop percentage in a parseable form?
 - **Question 3 (volume):** how many listings does L'Eliana actually have per operation? This
   replaces the estimate in this plan and fixes the backfill schedule.
+
+### External cross-check (ScrapingBee article, read 2026-09-18)
+
+The article the user linked was reviewed. It agrees with the confirmed facts above and adds no
+requirement, but it raises the confidence in three design decisions:
+
+- **Card and pagination selectors match.** It uses `article` with class `item` for the cards and
+  `li.next > a` for the next page — the same structure this plan builds on. It does **not** know
+  the `data-element-id` attribute and parses the id out of the link instead, so this plan's primary
+  id source is the more robust of the two.
+- **No structured data.** The article extracts everything from CSS/XPath selectors and mentions no
+  JSON-LD, `__NEXT_DATA__` or `utag_data` either. This independently supports the selector registry
+  with fallbacks rather than a search for a hidden JSON payload.
+- **Datadome is the anti-bot system, and a premium/residential proxy is the answer.** Its own
+  browser route needs a captcha solved by hand at least once per session — exactly the reason this
+  plan uses a managed API (ZenRows with `premium_proxy`) instead of Playwright/Selenium.
+- **What it does not answer:** whether `js_render` is really needed for the *search* page (its
+  browser route renders JavaScript by definition, so it cannot distinguish), nor the 60-page cap.
+  Question 1 of the spike therefore stays the decisive one.
 - **Method:** 4 targeted live requests (L'Eliana sale page 1 with and without `js_render`, L'Eliana
   sale page 2, L'Eliana rent page 1), store the raw HTML, then analyse strictly offline. The stored
   pages become redacted test fixtures.
@@ -447,9 +466,13 @@ approximately three Free months. `--credit-budget` additionally caps every singl
   page and replaces the estimate in this plan, which in turn fixes the backfill schedule.
 - **Assumption:** the confirmed selectors survive the ZenRows round trip. The stored raw HTML from
   the spike settles this before any parser is written.
-- **Unverified reference:** the user linked a ScrapingBee article on scraping Idealista. Web
-  fetching is disabled in this environment, so it has not been reviewed. Worth a read during Phase 0
-  as a cross-check on selectors and pagination; nothing in this plan depends on it.
+- **Resolved reference:** the ScrapingBee article on scraping Idealista has now been read
+  (see "External cross-check"). It confirms the card and pagination selectors and names Datadome as
+  the anti-bot system, and changes nothing in this plan.
+- **Risk:** Idealista is protected by **Datadome** (named explicitly in the ScrapingBee article),
+  which is why a request needs `premium_proxy` and why a block can arrive as an HTTP 200 challenge
+  page. *Mitigation:* already covered by the challenge marker check and the required-field contract;
+  the spike additionally compares extracted id sets rather than HTML length.
 
 ## Progress log
 
@@ -469,3 +492,41 @@ approximately three Free months. `--credit-budget` additionally caps every singl
   re-fetch entirely. The 60-page / 1,800-listing cap and the neighbourhood URL form are now
   confirmed facts rather than assumptions, as are the card and pagination selectors including
   `article.item[data-element-id]`.
+- **2026-09-18** — The linked ScrapingBee article was read and cross-checked against the plan (see
+  "External cross-check"). It confirms the card and pagination selectors, confirms the absence of
+  structured data, and names Datadome as the anti-bot system. No plan change followed from it; the
+  `js_render` question remains open for the spike.
+- **2026-09-18** — Reviewed by `@reviewer` (see `dev/reviews/REVIEW-FEATURE-001.md`): **Approved**
+  with seven corrections, all folded into `dev/plans/technical/FEATURE-001-technical-plan.yaml`
+  (20 tasks). The corrections that change this plan's text on its next edit: the local output
+  contract is JSONL in FEATURE-002's layout (M1), the credit budget gains a month-to-date ledger
+  derived from the run reports because a per-run budget alone cannot protect a non-rolling monthly
+  quota (M2), a search page counts as valid only with at least one card **or** an explicit
+  no-results marker so a Datadome challenge can never be recorded as an empty area (M4), detail
+  fetches per listing id are capped at 3 attempts (M5), and fetching is **sequential** rather than a
+  thread pool at this scope (M6). Reviewer effort estimate: ~25.5h against the planned ~12h.
+- **2026-09-19** — Review revised after the user supplied the site's navigation surfaces and their
+  listing counts. Three corrections apply to this plan's text on its next edit. **Volume:** L'Eliana
+  has **215** sale listings, not the estimated ~300, read from
+  `/venta-viviendas/valencia-provincia/municipios`; the backfill therefore completes in ~2 Free
+  months rather than ~3. **Granularity (M9):** Valencia expansion uses **district** URLs
+  `/venta-viviendas/valencia/<district>/`, not neighbourhood URLs — the city holds 5,462 sale
+  listings and its largest district 553, so ~19 targets cover it instead of ~70; area discovery
+  stays a manual browser step using the municipality and zone indexes, which also give the count
+  needed to check the 1,800 cap before adding a target. **Crawl order (M8):** a search page is
+  processed as a complete unit — cards, then that page's new detail pages, then `li.next` — for
+  checkpointing and bounded memory, not for bot evasion, which ZenRows makes irrelevant since every
+  request gets a fresh residential IP and no shared session. The `data-element-id` assumption is now
+  confirmed: the captured card carries `data-element-id="111804117"` around
+  `a.item-link[href="/inmueble/111804117/"]`.
+- **2026-09-19** — Both remaining open questions closed from the user's captures. **Rent volume:**
+  L'Eliana has **42** rental listings (`/alquiler-viviendas/l-eliana-valencia/`), so the starting
+  scope is 215 + 42 = **257 listings over 10 search pages**; the backfill is ~6,425 credits and
+  completes in ~1.7 Free months. **Recency sort:** it is the bare query `?fecha-publicacion-desc`
+  (not `?ordenado-por=…`), so every target is requested sorted and page order equals recency, which
+  makes the staged backfill genuinely newest-first. One caveat carried into task 0.3: if the
+  `li.next` href drops that query, page 2 would silently return relevance order, so the crawler
+  re-applies the sort to every page URL. **New field (L5):** the card carries a relative freshness
+  badge ("6 horas"); it is stored verbatim as `freshness_label` because it is the only signal that
+  can date a listing published before collection began, and it is deliberately not interpreted in
+  Bronze.

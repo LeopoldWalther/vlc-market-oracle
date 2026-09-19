@@ -1,0 +1,1092 @@
+# Technical plan — FEATURE-001, emitted by @reviewer after an Approved verdict.
+#
+# Read dev/reviews/REVIEW-FEATURE-001.md for the reasoning. This file is the instruction set:
+# every product and design choice is already made here. Tasks M1-M7 in the review map to tasks
+# 4.1, 2.3, 0.3/1.3/1.4, 1.4, 3.3, 2.1 and 0.1 respectively.
+#
+# All commands run from the repository root with the project virtualenv active.
+
+technical_plan:
+  metadata:
+    for_feature: "FEATURE-001"
+    created_by: "reviewer_agent"
+    created_at: "2026-09-18"
+    version: "1.0"
+    total_tasks: 20
+    estimated_hours: "24-26"
+    risk_level: "medium"
+    critical_path: ["0.2", "0.3", "1.3", "1.4", "3.1", "3.2", "3.3", "3.4", "4.3", "4.4"]
+    feature_plan: "dev/plans/FEATURE-001-region-listing-crawl.md"
+    reviewed_plan: "dev/reviews/REVIEW-FEATURE-001.md"
+
+  validation:
+    required_checks:
+      - "workflow-consistency"
+    # No lint, type or coverage configuration exists in this repository (see review finding L3).
+    min_coverage: null
+    baseline_commands:
+      - "python -m unittest tests.test_idealista_listing_parser tests.test_zenrows_source tests.test_validate_workflow -v"
+      - "python dev/tools/validate_workflow.py"
+    final_commands:
+      - "python -m unittest discover -s tests -t . -v"
+      - "python dev/tools/validate_workflow.py"
+
+  tasks:
+    - id: "0.1"
+      title: "Align the README collection policy with the shipped code"
+      description: |
+        README.md:76 states the project does not bypass anti-bot protections, which contradicts
+        .github/copilot-instructions.md and the already merged ZenRows path that sends
+        premium_proxy=true against a Datadome-protected site. Resolve the contradiction before any
+        code is written on top of it. State the approved mechanism positively.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 0.5
+      depends_on: []
+      branch: "feature/region-listing-crawl/0.1-align-collection-policy"
+      commit_message: "docs: state the approved collection mechanism in the README"
+      acceptance_criteria:
+        - "The 'Responsible collection' section names the managed scraping API with residential proxies as the approved mechanism"
+        - "It still forbids authentication bypass and any account-only or paid-API data"
+        - "No sentence in README.md contradicts the 'Scraping Rules' section of .github/copilot-instructions.md"
+        - "The 'Current repository state' section no longer presents the browser notebooks as the collection path"
+      tdd: null
+      validation_commands:
+        - "python dev/tools/validate_workflow.py"
+      allowed_files:
+        - "README.md"
+      forbidden_files:
+        - "src/**"
+        - "tests/**"
+      can_run_parallel_with: ["0.2"]
+      reversible: true
+      rollback: "Revert the task commit; documentation only"
+      files_to_create: []
+      files_to_modify:
+        - "README.md"
+
+    - id: "0.2"
+      title: "Repair test discovery and remove the superseded browser collection path"
+      description: |
+        `python -m unittest discover -s tests -t .` currently fails with
+        "Start directory is not importable" because tests/__init__.py is missing, and the two
+        Playwright notebook test modules have been failing since the last notebook change. Removing
+        both notebooks and their tests, plus the unused dev_dataclass module, leaves one collection
+        path. Reproduced in an isolated copy: the result is 17 tests, OK.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1
+      depends_on: []
+      branch: "feature/region-listing-crawl/0.2-repair-test-harness"
+      commit_message: "chore: repair unittest discovery and drop the browser collection path"
+      acceptance_criteria:
+        - "`python -m unittest discover -s tests -t . -v` runs and reports 17 tests OK"
+        - "Both Playwright notebooks, both notebook test modules and src/dev_dataclass.py are deleted"
+        - "requirements-notebook.txt retains only what a surviving notebook needs"
+        - "No remaining file imports playwright, patchright, selenium or undetected_chromedriver"
+      tdd: null
+      validation_commands:
+        - "python -m unittest discover -s tests -t . -v"
+        - "grep -rl -E 'playwright|patchright|selenium|undetected_chromedriver' src tests || true"
+      allowed_files:
+        - "tests/__init__.py"
+        - "tests/test_idealista_playwright_notebook_entrypoint.py"
+        - "tests/test_idealista_playwright_stealth_notebook.py"
+        - "src/notebooks/idealista_playwright_scraper.ipynb"
+        - "src/notebooks/idealista_selenium_scraper.ipynb"
+        - "src/dev_dataclass.py"
+        - "requirements-notebook.txt"
+      forbidden_files:
+        - "src/idealista/**"
+        - "README.md"
+      can_run_parallel_with: ["0.1"]
+      reversible: true
+      rollback: "Revert the task commit; the deleted notebooks remain in git history"
+      files_to_create:
+        - "tests/__init__.py"
+      files_to_modify:
+        - "requirements-notebook.txt"
+
+    - id: "0.3"
+      title: "Capture search-page evidence and commit reduced fixtures"
+      description: |
+        Answer the three spike questions and produce the fixtures Phase 1 needs. Review finding M3:
+        the fixture and the live spike are deliberately decoupled. The fixture may come from the
+        browser (save the page, or copy document.documentElement.outerHTML from DevTools) at zero
+        credits, and that HTML is the more trustworthy source for selector work. The live requests
+        answer only what a browser cannot.
+
+        Live part, 4 requests, ~100 of 5,000 monthly credits, REQUIRES THE USER'S EXPLICIT
+        GO-AHEAD: L'Eliana sale page 1 with js_render, the same page without js_render, sale page 2,
+        rent page 1. Compare the sets of data-element-id values, not the HTML length - a block
+        arrives as HTTP 200. Store every payload under data/raw/idealista/search/ before analysing.
+
+        Committed fixtures are reduced, not whole pages (review finding L2): the
+        section.items-container subtree with three or four cards plus the pagination block, with
+        agency and contact markup stripped. Note span.highlighted-text ("Top", "Destacado") sits
+        OUTSIDE and before the article, so the card selector must not swallow it.
+
+        One question must be settled from the captured HTML (review finding M8 caveat): the recency
+        sort is the bare query ?fecha-publicacion-desc, confirmed on
+        /alquiler-viviendas/l-eliana-valencia/. Check whether the li.next href on a sorted page
+        carries that query. If it does not, the crawler must re-apply the sort to every page URL it
+        builds, otherwise page 2 silently returns relevance order - plausible-looking wrong data.
+        Record the answer in the feature plan's progress log together with the js_render decision
+        and the confirmed no-results marker text for task 1.4. Volumes are already authoritative:
+        215 sale and 42 rent listings, 8 + 2 = 10 search pages.
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 1
+      depends_on: ["0.2"]
+      branch: "feature/region-listing-crawl/0.3-search-page-evidence"
+      commit_message: "test: add reduced Idealista search page fixtures from captured evidence"
+      acceptance_criteria:
+        - "tests/fixtures/idealista_search_page.html holds at least 3 article.item[data-element-id] cards and the div.pagination block"
+        - "tests/fixtures/idealista_search_page_last.html has no li.next entry"
+        - "tests/fixtures/idealista_search_page_empty.html carries the real no-results marker and zero cards"
+        - "tests/fixtures/idealista_search_page_challenge.html is a captured Datadome challenge, or a minimal stand-in if none was served"
+        - "No fixture contains an agency name, phone number, email address or personal identifier"
+        - "The feature plan's progress log records the js_render answer, the no-results marker and the real result counts per operation"
+        - "Raw captures live under data/raw/idealista/search/ and are not committed (/data/* is gitignored)"
+      tdd: null
+      validation_commands:
+        - "grep -c 'data-element-id' tests/fixtures/idealista_search_page.html"
+        - "grep -ciE 'telefono|tel:|@|agencia|profesional' tests/fixtures/idealista_search_page*.html"
+        - "python dev/tools/validate_workflow.py"
+      allowed_files:
+        - "tests/fixtures/idealista_search_page.html"
+        - "tests/fixtures/idealista_search_page_last.html"
+        - "tests/fixtures/idealista_search_page_empty.html"
+        - "tests/fixtures/idealista_search_page_challenge.html"
+        - "dev/plans/FEATURE-001-region-listing-crawl.md"
+      forbidden_files:
+        - "src/**"
+        - "data/**"
+      can_run_parallel_with: []
+      reversible: true
+      rollback: "Revert the task commit; credits already spent on the live captures are not recoverable"
+      files_to_create:
+        - "tests/fixtures/idealista_search_page.html"
+        - "tests/fixtures/idealista_search_page_last.html"
+        - "tests/fixtures/idealista_search_page_empty.html"
+        - "tests/fixtures/idealista_search_page_challenge.html"
+      files_to_modify:
+        - "dev/plans/FEATURE-001-region-listing-crawl.md"
+
+    - id: "1.1"
+      title: "Define the crawl value objects"
+      description: |
+        Frozen dataclasses for SearchTarget, ListingObservation, ListingDetail and CrawlReport.
+        They validate at construction and are the join surface between parsers, crawler, writer and
+        FEATURE-002. price_per_sqm is deliberately absent: it is derived and belongs in Silver.
+        Money stays an int in euros; price_drop_pct is a float because it is a ratio, not money.
+
+        Review finding L5: the card carries a relative freshness badge ("6 horas", "21 horas").
+        Store it verbatim as the nullable string freshness_label. It is the only signal that can
+        date a listing published before collection started, so it closes the time-on-market cold
+        start - but its exact meaning (published or updated) is unestablished, so Bronze stores the
+        raw text and never interprets it.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1
+      depends_on: ["0.2"]
+      branch: "feature/region-listing-crawl/1.1-crawl-value-objects"
+      commit_message: "feat(idealista): add crawl value objects for observations and details"
+      acceptance_criteria:
+        - "ListingObservation carries listing_id, listing_url, operation, municipality, district, price_eur, prev_price_eur, price_drop_pct, sqm_built, rooms, freshness_label and observed_at"
+        - "freshness_label is an optional raw string and is never parsed into a duration in Bronze"
+        - "A blank listing_id or a negative price_eur raises ValueError naming the field"
+        - "observed_at is timezone-aware UTC; a naive datetime raises ValueError"
+        - "SearchTarget rejects an operation outside {sale, rent}"
+        - "All four records are frozen and cannot be mutated after construction"
+      tdd:
+        red:
+          test_file: "tests/test_crawl_models.py"
+          command: "python -m unittest discover -s tests -t . -p 'test_crawl_models.py' -v"
+          expected_failure: "ModuleNotFoundError: no module named 'src.idealista.models'"
+        green:
+          behavior: "Add frozen dataclasses with __post_init__ validation raising ValueError per field"
+          command: "python -m unittest discover -s tests -t . -p 'test_crawl_models.py' -v"
+        refactor:
+          rule: "Extract a shared validation helper only if three or more fields repeat the same check"
+          command: "python -m unittest discover -s tests -t . -p 'test_crawl_models.py' -v"
+      validation_commands:
+        - "python -m unittest discover -s tests -t . -p 'test_crawl_models.py' -v"
+      allowed_files:
+        - "src/idealista/models.py"
+        - "tests/test_crawl_models.py"
+      forbidden_files:
+        - "src/idealista/listing_parser.py"
+        - "src/idealista/zenrows_source.py"
+      can_run_parallel_with: ["1.2"]
+      reversible: true
+      rollback: "Revert the task commit; no consumer exists yet"
+      files_to_create:
+        - "src/idealista/models.py"
+        - "tests/test_crawl_models.py"
+      files_to_modify: []
+
+    - id: "1.2"
+      title: "Resolve fields through an ordered selector registry"
+      description: |
+        A pure resolver that takes an ordered list of candidate CSS selectors and returns the first
+        match together with the name of the selector that matched, so drift is attributable. A field
+        with no match returns None and is recorded in missing_fields. This is the mechanism that
+        turns a layout change from a code change into a data change.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1
+      depends_on: ["0.2"]
+      branch: "feature/region-listing-crawl/1.2-selector-registry"
+      commit_message: "feat(idealista): resolve fields through an ordered selector registry"
+      acceptance_criteria:
+        - "resolve_field returns the text of the first matching selector and that selector's identifier"
+        - "With no matching selector it returns None and the caller can record the field as missing"
+        - "The registry is plain data: adding a fallback requires no code change"
+        - "The resolver performs no network or filesystem access"
+      tdd:
+        red:
+          test_file: "tests/test_selectors.py"
+          command: "python -m unittest discover -s tests -t . -p 'test_selectors.py' -v"
+          expected_failure: "ModuleNotFoundError: no module named 'src.idealista.selectors'"
+        green:
+          behavior: "Implement resolve_field over a BeautifulSoup tree plus the registry mapping"
+          command: "python -m unittest discover -s tests -t . -p 'test_selectors.py' -v"
+        refactor:
+          rule: "Keep the registry and the resolver in one module while it stays under ~120 lines"
+          command: "python -m unittest discover -s tests -t . -p 'test_selectors.py' -v"
+      validation_commands:
+        - "python -m unittest discover -s tests -t . -p 'test_selectors.py' -v"
+      allowed_files:
+        - "src/idealista/selectors.py"
+        - "tests/test_selectors.py"
+      forbidden_files:
+        - "src/idealista/listing_parser.py"
+      can_run_parallel_with: ["1.1"]
+      reversible: true
+      rollback: "Revert the task commit; nothing consumes the registry until task 1.3"
+      files_to_create:
+        - "src/idealista/selectors.py"
+        - "tests/test_selectors.py"
+      files_to_modify: []
+
+    - id: "1.3"
+      title: "Parse a search results page into listing observations"
+      description: |
+        Turn one search page into ListingObservation records plus the next page URL and the total
+        result count. The listing id comes from article.item[data-element-id]; review finding L1
+        requires the parser to also read the id out of the a.item-link href and to report a mismatch
+        as drift rather than silently preferring one source. Cards carry price, struck-through
+        previous price, drop percentage, rooms and size.
+
+        Two details from the captured pages: div.item-detail-char reads like
+        "Garaje incluido 4 hab. 223 m2", so the first token is not always numeric and parsing must
+        match on unit keywords rather than on position. Review finding L5: capture the card's
+        relative freshness badge verbatim into freshness_label when present, and leave it None when
+        absent - most cards do not carry one.
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 2
+      depends_on: ["1.1", "1.2", "0.3"]
+      branch: "feature/region-listing-crawl/1.3-search-page-parser"
+      commit_message: "feat(idealista): parse search result cards into listing observations"
+      acceptance_criteria:
+        - "Every article.item[data-element-id] in the fixture yields one ListingObservation"
+        - "listing_id comes from data-element-id and equals the id parsed from the a.item-link href"
+        - "A mismatch between the two id sources is reported as drift, not silently resolved"
+        - "price_eur, sqm_built and rooms are parsed from the card as ints"
+        - "rooms and size are matched by unit keyword, so a leading non-numeric feature such as 'Garaje incluido' does not shift them"
+        - "A card with a freshness badge yields its raw text in freshness_label; a card without one yields None"
+        - "next_page_url is the absolute URL derived from li.next > a[href] and preserves the sort query of the requested page"
+        - "The total result count from the page header is returned alongside the observations"
+        - "The parser performs no network access and takes HTML plus the search target as arguments"
+      tdd:
+        red:
+          test_file: "tests/test_search_page_parser.py"
+          command: "python -m unittest discover -s tests -t . -p 'test_search_page_parser.py' -v"
+          expected_failure: "ModuleNotFoundError: no module named 'src.idealista.search_page_parser'"
+        green:
+          behavior: "Implement parse_search_page returning observations, next_page_url and result_count"
+          command: "python -m unittest discover -s tests -t . -p 'test_search_page_parser.py' -v"
+        refactor:
+          rule: "Move every literal selector into src/idealista/selectors.py; the tests stay green"
+          command: "python -m unittest discover -s tests -t . -p 'test_search_page_parser.py' -v"
+      validation_commands:
+        - "python -m unittest discover -s tests -t . -p 'test_search_page_parser.py' -v"
+        - "python -m unittest discover -s tests -t . -p 'test_selectors.py' -v"
+      allowed_files:
+        - "src/idealista/search_page_parser.py"
+        - "src/idealista/selectors.py"
+        - "tests/test_search_page_parser.py"
+      forbidden_files:
+        - "src/idealista/zenrows_source.py"
+        - "src/idealista/models.py"
+      can_run_parallel_with: ["1.5", "1.6"]
+      reversible: true
+      rollback: "Revert the task commit; the crawler does not exist yet"
+      files_to_create:
+        - "src/idealista/search_page_parser.py"
+        - "tests/test_search_page_parser.py"
+      files_to_modify:
+        - "src/idealista/selectors.py"
+
+    - id: "1.4"
+      title: "Separate an empty search area from a blocked page"
+      description: |
+        Review finding M4, the most consequential correction in this plan. A Datadome challenge and
+        a genuinely empty area both return HTTP 200 with zero cards; as originally specified the
+        crawler would record a block as "this area has no listings" and report a healthy run.
+        Make validity positive: a page is a valid search page only if it carries at least one
+        article.item[data-element-id] OR the explicit no-results marker. Anything else is rejected
+        for quarantine and counted as an error. Also covers the last page, a card without a price
+        reduction, and the 60-page cap.
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 1.5
+      depends_on: ["1.3"]
+      branch: "feature/region-listing-crawl/1.4-search-page-validity"
+      commit_message: "feat(idealista): reject blocked search pages instead of reading them as empty"
+      acceptance_criteria:
+        - "The last-page fixture returns next_page_url None and does not raise"
+        - "The empty-result fixture returns zero observations and is treated as a valid page"
+        - "The challenge fixture raises SearchPageRejected naming the reason; it is never reported as an empty area"
+        - "A card without a price reduction yields prev_price_eur None and price_drop_pct None"
+        - "The page cap is a parameter defaulting to 60, so the test proves the stop with 3 pages"
+        - "Reaching the cap is reported as page_cap_reached for that target rather than silently truncating"
+      tdd:
+        red:
+          test_file: "tests/test_search_page_validity.py"
+          command: "python -m unittest discover -s tests -t . -p 'test_search_page_validity.py' -v"
+          expected_failure: "ImportError: SearchPageRejected is not defined in src.idealista.search_page_parser"
+        green:
+          behavior: "Add the positive validity check, SearchPageRejected, and the configurable page cap"
+          command: "python -m unittest discover -s tests -t . -p 'test_search_page_validity.py' -v"
+        refactor:
+          rule: "Keep the no-results marker in the selector registry so a wording change is a data edit"
+          command: "python -m unittest discover -s tests -t . -p 'test_search_page*.py' -v"
+      validation_commands:
+        - "python -m unittest discover -s tests -t . -p 'test_search_page*.py' -v"
+      allowed_files:
+        - "src/idealista/search_page_parser.py"
+        - "src/idealista/selectors.py"
+        - "tests/test_search_page_validity.py"
+      forbidden_files:
+        - "src/idealista/listing_parser.py"
+      can_run_parallel_with: ["1.5", "1.6"]
+      reversible: true
+      rollback: "Revert the task commit; task 1.3 behavior remains intact"
+      files_to_create:
+        - "tests/test_search_page_validity.py"
+      files_to_modify:
+        - "src/idealista/search_page_parser.py"
+        - "src/idealista/selectors.py"
+
+    - id: "1.5"
+      title: "Move detail extraction onto the registry and enforce required fields"
+      description: |
+        Today listing_parser.py uses fixed single selectors and turns every miss into None, so a
+        renamed class produces a silently incomplete record. Move field resolution onto the registry
+        with fallbacks, record missing_fields, and reject a record that lacks listing_id, price_eur
+        or sqm_built instead of writing it. Drop price_per_sqm (derived, and a float where money
+        must not be); add operation, municipality, district, observed_at and extraction_version.
+        The 8 existing parser tests must stay green through the refactor.
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 2
+      depends_on: ["1.1", "1.2"]
+      branch: "feature/region-listing-crawl/1.5-detail-parser-registry"
+      commit_message: "feat(idealista): resolve detail fields via the registry and reject incomplete records"
+      acceptance_criteria:
+        - "A fixture with the primary price class renamed is parsed correctly through the fallback selector"
+        - "A fixture with every price selector removed raises ListingRejected naming price_eur"
+        - "A parsed record reports missing_fields for every field no selector matched"
+        - "price_per_sqm no longer exists on the record; operation, municipality, district, observed_at and extraction_version do"
+        - "tests/test_idealista_listing_parser.py still passes, adjusted only where the contract deliberately changed"
+      tdd:
+        red:
+          test_file: "tests/test_listing_parser_drift.py"
+          command: "python -m unittest discover -s tests -t . -p 'test_listing_parser_drift.py' -v"
+          expected_failure: "AttributeError: parse_listing_html has no fallback resolution and returns None for the renamed price class"
+        green:
+          behavior: "Resolve each field through resolve_field and raise ListingRejected on a missing required field"
+          command: "python -m unittest discover -s tests -t . -p 'test_listing_parser*.py' -v"
+        refactor:
+          rule: "Keep parse_features and the unit helpers unchanged; only field resolution moves"
+          command: "python -m unittest discover -s tests -t . -p 'test_idealista_listing_parser.py' -v"
+      validation_commands:
+        - "python -m unittest discover -s tests -t . -p 'test_listing_parser_drift.py' -v"
+        - "python -m unittest discover -s tests -t . -p 'test_idealista_listing_parser.py' -v"
+      allowed_files:
+        - "src/idealista/listing_parser.py"
+        - "src/idealista/selectors.py"
+        - "src/idealista/models.py"
+        - "tests/test_listing_parser_drift.py"
+        - "tests/test_idealista_listing_parser.py"
+        - "tests/fixtures/idealista_listing_renamed_price.html"
+        - "tests/fixtures/idealista_listing_no_price.html"
+      forbidden_files:
+        - "src/idealista/search_page_parser.py"
+        - "src/scrape_listing_zenrows.py"
+      can_run_parallel_with: ["1.3", "1.4", "1.6"]
+      reversible: true
+      rollback: "Revert the task commit; src/scrape_listing_zenrows.py keeps its current contract until task 4.3"
+      files_to_create:
+        - "tests/test_listing_parser_drift.py"
+        - "tests/fixtures/idealista_listing_renamed_price.html"
+        - "tests/fixtures/idealista_listing_no_price.html"
+      files_to_modify:
+        - "src/idealista/listing_parser.py"
+        - "src/idealista/selectors.py"
+        - "src/idealista/models.py"
+        - "tests/test_idealista_listing_parser.py"
+
+    - id: "1.6"
+      title: "Fail a run whose field coverage drops below threshold"
+      description: |
+        Per-field fill rates across a run, with configured thresholds. Falling below one ends the
+        run with a non-zero exit code and names the affected fields, so a layout change is loud
+        rather than a slow erosion of the dataset. Thresholds are configuration and are calibrated
+        from the first real run rather than guessed.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1
+      depends_on: ["1.1"]
+      branch: "feature/region-listing-crawl/1.6-coverage-report"
+      commit_message: "feat(idealista): fail a crawl run when field coverage drops below threshold"
+      acceptance_criteria:
+        - "A list of extraction results produces per-field coverage ratios in the CrawlReport"
+        - "A breached threshold sets report.failed True and lists the affected field names"
+        - "Coverage at or above every threshold leaves report.failed False"
+        - "The report serializes to JSON containing requests, credits spent, pages per target, records, quarantine count and errors by category"
+      tdd:
+        red:
+          test_file: "tests/test_crawl_report.py"
+          command: "python -m unittest discover -s tests -t . -p 'test_crawl_report.py' -v"
+          expected_failure: "ImportError: cannot import build_crawl_report from src.idealista.crawl_report"
+        green:
+          behavior: "Aggregate coverage per field, compare against thresholds, and serialize the report"
+          command: "python -m unittest discover -s tests -t . -p 'test_crawl_report.py' -v"
+        refactor:
+          rule: "Keep report building a pure function over results; the CLI decides the exit code"
+          command: "python -m unittest discover -s tests -t . -p 'test_crawl_report.py' -v"
+      validation_commands:
+        - "python -m unittest discover -s tests -t . -p 'test_crawl_report.py' -v"
+      allowed_files:
+        - "src/idealista/crawl_report.py"
+        - "src/idealista/models.py"
+        - "tests/test_crawl_report.py"
+      forbidden_files:
+        - "src/idealista/region_crawler.py"
+      can_run_parallel_with: ["1.3", "1.4", "1.5"]
+      reversible: true
+      rollback: "Revert the task commit"
+      files_to_create:
+        - "src/idealista/crawl_report.py"
+        - "tests/test_crawl_report.py"
+      files_to_modify:
+        - "src/idealista/models.py"
+
+    - id: "2.1"
+      title: "Fetch sequentially with retries, credit accounting and a per-run budget"
+      description: |
+        Introduce the narrow HtmlFetcher protocol so the crawler can be tested without network and
+        FEATURE-003 can substitute an implementation, and extend the ZenRows adapter with credit
+        accounting and a per-run budget stop.
+
+        Review finding M6: fetching is SEQUENTIAL with a configurable pause. The starting scope is
+        ~12 search pages per pass and at most ~148 detail pages per month; a thread pool is
+        speculative complexity here and works against the required human-like pacing. Adding
+        concurrency later is contained and additive.
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 2
+      depends_on: ["1.1"]
+      branch: "feature/region-listing-crawl/2.1-fetcher-budget-retries"
+      commit_message: "feat(idealista): add the fetcher protocol, credit accounting and a run budget"
+      acceptance_criteria:
+        - "HtmlFetcher is a Protocol with a single fetch method; ZenRowsFetcher satisfies it"
+        - "Each request adds 25 credits with js_render and 10 without to the run counter"
+        - "A budget of N credits permits exactly N // cost_per_request requests, then stops"
+        - "The stop is controlled: stopped_reason is 'credit_budget_exhausted' and the process does not exit with an error"
+        - "429 and 5xx are retried with bounded backoff and jitter; 4xx other than 429 is not retried"
+        - "Requests are issued sequentially with a configurable pause; no thread pool is introduced"
+        - "The existing 6 tests in tests/test_zenrows_source.py stay green"
+      tdd:
+        red:
+          test_file: "tests/test_fetch_budget.py"
+          command: "python -m unittest discover -s tests -t . -p 'test_fetch_budget.py' -v"
+          expected_failure: "ImportError: cannot import ZenRowsFetcher from src.idealista.zenrows_source"
+        green:
+          behavior: "Add the protocol, the credit counter, the budget stop and the retry classification"
+          command: "python -m unittest discover -s tests -t . -p 'test_fetch_budget.py' -v"
+        refactor:
+          rule: "Keep fetch_listing_html as the transport function; the fetcher composes it and holds the counters"
+          command: "python -m unittest discover -s tests -t . -p 'test_zenrows_source.py' -v"
+      validation_commands:
+        - "python -m unittest discover -s tests -t . -p 'test_fetch_budget.py' -v"
+        - "python -m unittest discover -s tests -t . -p 'test_zenrows_source.py' -v"
+      allowed_files:
+        - "src/idealista/zenrows_source.py"
+        - "src/idealista/models.py"
+        - "tests/test_fetch_budget.py"
+      forbidden_files:
+        - "src/idealista/region_crawler.py"
+        - "tests/test_zenrows_source.py"
+      can_run_parallel_with: ["1.5", "1.6"]
+      reversible: true
+      rollback: "Revert the task commit; fetch_listing_html keeps its current signature"
+      files_to_create:
+        - "tests/test_fetch_budget.py"
+      files_to_modify:
+        - "src/idealista/zenrows_source.py"
+        - "src/idealista/models.py"
+
+    - id: "2.2"
+      title: "Replay a run from stored raw HTML without spending credits"
+      description: |
+        A second HtmlFetcher implementation that reads the stored raw payloads instead of calling
+        ZenRows. This is what makes parser changes testable against real pages at zero cost and what
+        keeps every record reproducible from its raw HTML.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1
+      depends_on: ["2.1"]
+      branch: "feature/region-listing-crawl/2.2-cached-fetcher"
+      commit_message: "feat(idealista): replay crawls from stored raw HTML"
+      acceptance_criteria:
+        - "CachedHtmlFetcher satisfies the HtmlFetcher protocol"
+        - "A replay over stored payloads issues zero network calls and spends zero credits"
+        - "A URL with no stored payload raises a specific error naming the URL"
+        - "The most recent payload is chosen when several timestamps exist for one URL"
+      tdd:
+        red:
+          test_file: "tests/test_cached_fetcher.py"
+          command: "python -m unittest discover -s tests -t . -p 'test_cached_fetcher.py' -v"
+          expected_failure: "ModuleNotFoundError: no module named 'src.idealista.cached_fetcher'"
+        green:
+          behavior: "Implement the cache lookup over the raw HTML directory with a URL-to-path mapping"
+          command: "python -m unittest discover -s tests -t . -p 'test_cached_fetcher.py' -v"
+        refactor:
+          rule: "Share the raw-path naming with the writer rather than duplicating the timestamp format"
+          command: "python -m unittest discover -s tests -t . -p 'test_cached_fetcher.py' -v"
+      validation_commands:
+        - "python -m unittest discover -s tests -t . -p 'test_cached_fetcher.py' -v"
+      allowed_files:
+        - "src/idealista/cached_fetcher.py"
+        - "tests/test_cached_fetcher.py"
+      forbidden_files:
+        - "src/idealista/zenrows_source.py"
+      can_run_parallel_with: ["2.3", "3.1"]
+      reversible: true
+      rollback: "Revert the task commit; live fetching is unaffected"
+      files_to_create:
+        - "src/idealista/cached_fetcher.py"
+        - "tests/test_cached_fetcher.py"
+      files_to_modify: []
+
+    - id: "2.3"
+      title: "Enforce the monthly credit quota across runs"
+      description: |
+        Review finding M2. A per-run budget does not protect a monthly quota: four weekly runs plus
+        a backfill pass, each within budget, can still exhaust 5,000 credits, and the allowance does
+        not roll over. Derive the month-to-date spend from the run reports that are already written
+        - they are the ledger, so this adds no new state file and no new failure mode. The per-run
+        budget stays as the second, tighter bound.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1
+      depends_on: ["2.1", "1.6"]
+      branch: "feature/region-listing-crawl/2.3-monthly-credit-ledger"
+      commit_message: "feat(idealista): enforce the monthly credit quota from prior run reports"
+      acceptance_criteria:
+        - "month_to_date_credits sums credits_spent from run reports of the current UTC month only"
+        - "Reports from a previous month are excluded, matching the no-rollover reality of the plan"
+        - "Given two prior reports and a monthly budget, a third run stops once the remainder is exhausted"
+        - "The stop sets stopped_reason 'monthly_budget_exhausted' and writes a partial report"
+        - "A missing or unreadable report directory yields a zero month-to-date spend rather than an error"
+      tdd:
+        red:
+          test_file: "tests/test_credit_ledger.py"
+          command: "python -m unittest discover -s tests -t . -p 'test_credit_ledger.py' -v"
+          expected_failure: "ModuleNotFoundError: no module named 'src.idealista.credit_ledger'"
+        green:
+          behavior: "Read the month's run reports, sum credits_spent, and expose the remaining allowance"
+          command: "python -m unittest discover -s tests -t . -p 'test_credit_ledger.py' -v"
+        refactor:
+          rule: "Keep the ledger a pure function over a directory path plus a reference date"
+          command: "python -m unittest discover -s tests -t . -p 'test_credit_ledger.py' -v"
+      validation_commands:
+        - "python -m unittest discover -s tests -t . -p 'test_credit_ledger.py' -v"
+      allowed_files:
+        - "src/idealista/credit_ledger.py"
+        - "tests/test_credit_ledger.py"
+      forbidden_files:
+        - "src/idealista/zenrows_source.py"
+      can_run_parallel_with: ["2.2", "3.1"]
+      reversible: true
+      rollback: "Revert the task commit; the per-run budget still applies"
+      files_to_create:
+        - "src/idealista/credit_ledger.py"
+        - "tests/test_credit_ledger.py"
+      files_to_modify: []
+
+    - id: "3.1"
+      title: "Paginate a search target, processing one page as a complete unit"
+      description: |
+        The orchestration core: follow li.next from page 1, deduplicate listing ids across pages,
+        and stop at max_pages or at the 60-page cap. Driven by a FakeHtmlFetcher over the fixture
+        pages, so no test touches the live portal.
+
+        Review finding M8: a page is processed end to end before the next page is fetched - parse
+        the cards, hand them to a per-page callback, then follow li.next. The callback seam is what
+        lets task 3.2 fetch that page's detail pages and task 4.1 write its records, so a budget
+        stop or a crash leaves a consistent prefix instead of a half-written run, and memory stays
+        bounded regardless of area size. Note the numeric page list is a sliding window (observed as
+        1..6, 47..51, 55..60), so the last page number cannot be read from page 1; li.next is the
+        only correct signal.
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 2
+      depends_on: ["1.4", "2.1"]
+      branch: "feature/region-listing-crawl/3.1-paginate-search-target"
+      commit_message: "feat(idealista): paginate a search target into deduplicated observations"
+      acceptance_criteria:
+        - "A FakeHtmlFetcher serving 3 fixture pages produces the union of their observations"
+        - "An id appearing on two pages yields exactly one observation for the run"
+        - "max_pages stops the crawl and the fetcher records no request beyond the limit"
+        - "Reaching page 60 sets page_cap_reached for that target in the run report"
+        - "The per-page callback is invoked once per page, in page order, before the next page is fetched"
+        - "Raw HTML is persisted before parsing for every fetched page"
+        - "The crawler depends on the HtmlFetcher protocol, never on ZenRows directly"
+      tdd:
+        red:
+          test_file: "tests/test_region_crawler.py"
+          command: "python -m unittest discover -s tests -t . -p 'test_region_crawler.py' -v"
+          expected_failure: "ModuleNotFoundError: no module named 'src.idealista.region_crawler'"
+        green:
+          behavior: "Implement the pagination loop with deduplication and the max_pages stop"
+          command: "python -m unittest discover -s tests -t . -p 'test_region_crawler.py' -v"
+        refactor:
+          rule: "Keep the crawler free of parsing and of HTTP details; it composes parsers and a fetcher"
+          command: "python -m unittest discover -s tests -t . -p 'test_region_crawler.py' -v"
+      validation_commands:
+        - "python -m unittest discover -s tests -t . -p 'test_region_crawler.py' -v"
+      allowed_files:
+        - "src/idealista/region_crawler.py"
+        - "tests/test_region_crawler.py"
+      forbidden_files:
+        - "src/idealista/search_page_parser.py"
+        - "src/idealista/zenrows_source.py"
+      can_run_parallel_with: ["2.2", "2.3"]
+      reversible: true
+      rollback: "Revert the task commit"
+      files_to_create:
+        - "src/idealista/region_crawler.py"
+        - "tests/test_region_crawler.py"
+      files_to_modify: []
+
+    - id: "3.2"
+      title: "Fetch a detail page only for a listing id never seen before"
+      description: |
+        The single largest cost saving in the design. A listing's attributes do not change after
+        publication and the only moving value - the price - is already on the card, together with
+        the previous price and the drop percentage. The known-id set is rebuilt from the stored
+        detail records rather than a side state file, so a lost file cannot cause silent gaps or
+        duplicate spending.
+
+        Review finding M8: selection runs per page, through task 3.1's callback, so a page's detail
+        pages are fetched before the next search page. Selection itself stays a pure set difference
+        and needs no fetcher to test.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1
+      depends_on: ["3.1", "1.5"]
+      branch: "feature/region-listing-crawl/3.2-incremental-detail-selection"
+      commit_message: "feat(idealista): fetch detail pages only for previously unseen listing ids"
+      acceptance_criteria:
+        - "Given a set of known ids, only unknown ids are proposed for detail fetching"
+        - "A known id whose card price changed is NOT re-fetched; the price change is carried by the observation alone"
+        - "The known-id set is derived from the stored detail records, not from a separate state file"
+        - "Detail fetches for a page happen before the next search page is requested"
+        - "cards_only mode provably issues no detail request"
+      tdd:
+        red:
+          test_file: "tests/test_detail_selection.py"
+          command: "python -m unittest discover -s tests -t . -p 'test_detail_selection.py' -v"
+          expected_failure: "ImportError: cannot import select_ids_for_detail_fetch from src.idealista.region_crawler"
+        green:
+          behavior: "Implement the set difference between observed ids and known ids, plus the cards_only switch"
+          command: "python -m unittest discover -s tests -t . -p 'test_detail_selection.py' -v"
+        refactor:
+          rule: "Keep selection a pure function over two id sets so it needs no fetcher to test"
+          command: "python -m unittest discover -s tests -t . -p 'test_detail_selection.py' -v"
+      validation_commands:
+        - "python -m unittest discover -s tests -t . -p 'test_detail_selection.py' -v"
+        - "python -m unittest discover -s tests -t . -p 'test_region_crawler.py' -v"
+      allowed_files:
+        - "src/idealista/region_crawler.py"
+        - "tests/test_detail_selection.py"
+      forbidden_files:
+        - "src/idealista/listing_parser.py"
+      can_run_parallel_with: []
+      reversible: true
+      rollback: "Revert the task commit; task 3.1 pagination remains intact"
+      files_to_create:
+        - "tests/test_detail_selection.py"
+      files_to_modify:
+        - "src/idealista/region_crawler.py"
+
+    - id: "3.3"
+      title: "Survive individual failures and stop retrying a permanently broken listing"
+      description: |
+        A failure on one detail page must not end the run. Review finding M5 adds the missing bound:
+        because the known-id set is rebuilt from stored detail records, a quarantined page stays
+        unknown and is re-selected on every future run - self-healing for a transient block, an
+        unbounded credit leak at 25 credits a try for a page that never parses. Cap the attempts and
+        keep the count visible, so a systematic breakage still shows up as a spike.
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 1.5
+      depends_on: ["3.2"]
+      branch: "feature/region-listing-crawl/3.3-failure-tolerance"
+      commit_message: "feat(idealista): tolerate single failures and cap retries per listing id"
+      acceptance_criteria:
+        - "A ZenRowsFetchError on one of three detail pages leaves the other two records produced"
+        - "The error increments the run report's error counter by category and the run continues"
+        - "A rejected detail page writes its raw HTML and diagnostics to the quarantine location"
+        - "An id that failed 3 times is excluded from selection on the next run"
+        - "The number of ids excluded by the cap appears in the run report"
+      tdd:
+        red:
+          test_file: "tests/test_crawl_failure_tolerance.py"
+          command: "python -m unittest discover -s tests -t . -p 'test_crawl_failure_tolerance.py' -v"
+          expected_failure: "The crawler propagates ZenRowsFetchError and produces no records for the remaining pages"
+        green:
+          behavior: "Catch per-listing failures, record them with an attempt count, and exclude ids past the cap"
+          command: "python -m unittest discover -s tests -t . -p 'test_crawl_failure_tolerance.py' -v"
+        refactor:
+          rule: "Never catch a broad exception without adding context and preserving the cause"
+          command: "python -m unittest discover -s tests -t . -p 'test_*crawl*.py' -v"
+      validation_commands:
+        - "python -m unittest discover -s tests -t . -p 'test_crawl_failure_tolerance.py' -v"
+        - "python -m unittest discover -s tests -t . -p 'test_region_crawler.py' -v"
+      allowed_files:
+        - "src/idealista/region_crawler.py"
+        - "src/idealista/crawl_report.py"
+        - "tests/test_crawl_failure_tolerance.py"
+      forbidden_files:
+        - "src/idealista/zenrows_source.py"
+      can_run_parallel_with: []
+      reversible: true
+      rollback: "Revert the task commit; failures propagate again until it is reapplied"
+      files_to_create:
+        - "tests/test_crawl_failure_tolerance.py"
+      files_to_modify:
+        - "src/idealista/region_crawler.py"
+        - "src/idealista/crawl_report.py"
+
+    - id: "3.4"
+      title: "Stage the initial backfill across months by priority"
+      description: |
+        The confirmed volumes are 215 sale and 42 rent listings, so the backfill is 257 details or
+        ~6,425 credits with js_render enabled, which does not fit in one 5,000-credit month. Fetch
+        details up to whatever the per-run and monthly budgets allow and carry the remainder to the
+        next run, so the backfill completes automatically over about two Free months instead of
+        requiring a paid plan up front.
+
+        Review finding M8: because pages are processed as units, the priority order is page order.
+        The recency sort is confirmed as the bare query ?fecha-publicacion-desc, so requesting
+        targets with it makes page order genuinely newest-first. The ordering stays a pure function
+        over the backlog.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1
+      depends_on: ["3.3", "2.3"]
+      branch: "feature/region-listing-crawl/3.4-staged-backfill"
+      commit_message: "feat(idealista): stage the detail backfill across runs by priority"
+      acceptance_criteria:
+        - "Given a backlog of 10 ids and a budget for 4 requests, exactly 4 details are fetched"
+        - "Selection follows page order, so earlier search pages are captured first"
+        - "The remaining 6 ids are still selected on the following run"
+        - "The run report records the backlog size before and after the run"
+      tdd:
+        red:
+          test_file: "tests/test_staged_backfill.py"
+          command: "python -m unittest discover -s tests -t . -p 'test_staged_backfill.py' -v"
+          expected_failure: "The crawler attempts all 10 detail fetches and ignores the remaining budget"
+        green:
+          behavior: "Truncate the page-ordered backlog to the remaining budget"
+          command: "python -m unittest discover -s tests -t . -p 'test_staged_backfill.py' -v"
+        refactor:
+          rule: "Express prioritization as a pure ordering function over the backlog"
+          command: "python -m unittest discover -s tests -t . -p 'test_staged_backfill.py' -v"
+      validation_commands:
+        - "python -m unittest discover -s tests -t . -p 'test_staged_backfill.py' -v"
+      allowed_files:
+        - "src/idealista/region_crawler.py"
+        - "tests/test_staged_backfill.py"
+      forbidden_files:
+        - "src/idealista/credit_ledger.py"
+      can_run_parallel_with: ["4.1", "4.2"]
+      reversible: true
+      rollback: "Revert the task commit; the budget stop from task 2.1 still bounds a run"
+      files_to_create:
+        - "tests/test_staged_backfill.py"
+      files_to_modify:
+        - "src/idealista/region_crawler.py"
+
+    - id: "4.1"
+      title: "Write records idempotently in the layout FEATURE-002 expects"
+      description: |
+        Review finding M1: the plan asserts idempotency as an invariant and a success criterion but
+        names no output format, path or writer. Use newline-delimited JSON under the same table
+        names and the same observed_date partitioning FEATURE-002 defines for S3, so the later
+        BronzeSink is a substitution rather than a migration:
+
+          data/bronze/idealista/<table>/operation=<sale|rent>/observed_date=YYYY-MM-DD/<target>.jsonl
+
+        Tables: listing_observations, listing_details, quarantine, runs. The dedup key is
+        (listing_id, observed_date) for observations and listing_id alone for details. A re-run
+        rewrites the day's file from the merged set instead of appending.
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 1.5
+      depends_on: ["3.2"]
+      branch: "feature/region-listing-crawl/4.1-bronze-writer"
+      commit_message: "feat(idealista): write observations and details idempotently as JSONL"
+      acceptance_criteria:
+        - "Observations are written to data/bronze/idealista/listing_observations/operation=<op>/observed_date=<date>/<target>.jsonl"
+        - "A second run on the same day produces byte-identical files, not duplicated rows"
+        - "A detail record is written once per listing_id; a re-run does not duplicate it"
+        - "The run report is written under the runs table so the credit ledger can read it"
+        - "observed_at serializes as a UTC ISO-8601 timestamp and observed_date is its UTC date"
+        - "The reader used to rebuild the known-id set returns the ids of all stored detail records"
+      tdd:
+        red:
+          test_file: "tests/test_bronze_writer.py"
+          command: "python -m unittest discover -s tests -t . -p 'test_bronze_writer.py' -v"
+          expected_failure: "ModuleNotFoundError: no module named 'src.idealista.bronze_writer'"
+        green:
+          behavior: "Implement key building, JSONL serialization, merge-on-write and the known-id reader"
+          command: "python -m unittest discover -s tests -t . -p 'test_bronze_writer.py' -v"
+        refactor:
+          rule: "Keep key building pure and separate from filesystem access, so FEATURE-002 reuses it"
+          command: "python -m unittest discover -s tests -t . -p 'test_bronze_writer.py' -v"
+      validation_commands:
+        - "python -m unittest discover -s tests -t . -p 'test_bronze_writer.py' -v"
+      allowed_files:
+        - "src/idealista/bronze_writer.py"
+        - "tests/test_bronze_writer.py"
+      forbidden_files:
+        - "src/idealista/region_crawler.py"
+        - "data/**"
+      can_run_parallel_with: ["3.4", "4.2"]
+      reversible: true
+      rollback: "Revert the task commit and delete data/bronze/; only local files are affected"
+      files_to_create:
+        - "src/idealista/bronze_writer.py"
+        - "tests/test_bronze_writer.py"
+      files_to_modify: []
+
+    - id: "4.2"
+      title: "Load search targets from configuration"
+      description: |
+        Adding an area must be a configuration line, not a code change - that is what makes the
+        agreed expansion path (L'Eliana first, then Valencia one district at a time) cheap.
+
+        Review finding M9: use DISTRICT URLs for Valencia, /venta-viviendas/valencia/<district>/,
+        not neighbourhood URLs. Valencia city holds 5,462 sale listings and its largest district
+        553, far below the 1,800 cap, so ~19 district targets cover the city where ~70 neighbourhood
+        targets would be needed. Keep the neighbourhood form
+        /venta-viviendas/valencia/<district>/<neighbourhood>/ as a commented fallback for the day a
+        district passes the cap. Both differ from the municipality form
+        /venta-viviendas/l-eliana-valencia/.
+
+        Area discovery stays a manual browser step and costs no credits: the municipality index
+        /venta-viviendas/valencia-provincia/municipios and the zone indexes
+        /venta-viviendas/valencia-valencia/mapa and /venta-viviendas/valencia/<district>/mapa list
+        every area with its listing count. Record that count per target as expected_listings so a
+        run returning far fewer observations is visible as drift.
+
+        Ship L'Eliana sale (/venta-viviendas/l-eliana-valencia/, expected_listings 215) and rent
+        (/alquiler-viviendas/l-eliana-valencia/, expected_listings 42). Every target is requested
+        with the recency sort, the bare query ?fecha-publicacion-desc, so page order equals recency
+        for task 3.4.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1
+      depends_on: ["1.1"]
+      branch: "feature/region-listing-crawl/4.2-search-target-config"
+      commit_message: "feat(idealista): load search targets from configuration"
+      acceptance_criteria:
+        - "Loading config/search_targets.yaml yields typed SearchTarget objects"
+        - "An unknown operation raises a specific configuration error naming the target"
+        - "A missing base_url raises a specific configuration error naming the field"
+        - "expected_listings is optional and, when set, is carried onto the SearchTarget"
+        - "An expected_listings value above 1800 raises a configuration error, because one search cannot return it"
+        - "The shipped configuration contains L'Eliana sale and rent with their real counts and a commented Valencia district example"
+        - "PyYAML is added to requirements.txt with a bounded version range"
+      tdd:
+        red:
+          test_file: "tests/test_search_targets.py"
+          command: "python -m unittest discover -s tests -t . -p 'test_search_targets.py' -v"
+          expected_failure: "ModuleNotFoundError: no module named 'yaml' or 'src.idealista.search_targets'"
+        green:
+          behavior: "Parse the YAML into SearchTarget objects and validate each entry"
+          command: "python -m unittest discover -s tests -t . -p 'test_search_targets.py' -v"
+        refactor:
+          rule: "Validate at the boundary and raise a specific error; never return a dict of Any"
+          command: "python -m unittest discover -s tests -t . -p 'test_search_targets.py' -v"
+      validation_commands:
+        - "python -m unittest discover -s tests -t . -p 'test_search_targets.py' -v"
+      allowed_files:
+        - "src/idealista/search_targets.py"
+        - "config/search_targets.yaml"
+        - "requirements.txt"
+        - "tests/test_search_targets.py"
+        - "tests/fixtures/search_targets_invalid.yaml"
+      forbidden_files:
+        - "src/idealista/region_crawler.py"
+      can_run_parallel_with: ["3.4", "4.1"]
+      reversible: true
+      rollback: "Revert the task commit and uninstall PyYAML if desired"
+      files_to_create:
+        - "src/idealista/search_targets.py"
+        - "config/search_targets.yaml"
+        - "tests/test_search_targets.py"
+        - "tests/fixtures/search_targets_invalid.yaml"
+      files_to_modify:
+        - "requirements.txt"
+
+    - id: "4.3"
+      title: "Expose the crawl as a bounded command line entry point"
+      description: |
+        One entry point with every kill switch the plan requires, and the composition root where the
+        fetcher, parsers, writer and ledger are wired. Folding the single-URL script into the shared
+        path removes the second collection route.
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 1.5
+      depends_on: ["3.4", "4.1", "4.2", "2.2"]
+      branch: "feature/region-listing-crawl/4.3-collect-region-cli"
+      commit_message: "feat(idealista): add the bounded collect-region command line entry point"
+      acceptance_criteria:
+        - "Arguments --target, --max-pages, --max-listings, --cards-only, --credit-budget, --monthly-budget, --replay, --no-js-render and --dry-run are parsed"
+        - "--dry-run provably triggers no fetch and no write"
+        - "--replay wires CachedHtmlFetcher so the run spends zero credits"
+        - "A failed coverage threshold makes the process exit non-zero; a budget stop does not"
+        - "The API key is read from the environment only and never appears in logs or output"
+        - "src/scrape_listing_zenrows.py is folded into this path or removed, and no test references it afterwards"
+      tdd:
+        red:
+          test_file: "tests/test_collect_region_cli.py"
+          command: "python -m unittest discover -s tests -t . -p 'test_collect_region_cli.py' -v"
+          expected_failure: "ModuleNotFoundError: no module named 'src.collect_region'"
+        green:
+          behavior: "Implement argument parsing and the composition root, injecting the fetcher and writer"
+          command: "python -m unittest discover -s tests -t . -p 'test_collect_region_cli.py' -v"
+        refactor:
+          rule: "The CLI wires and decides exit codes only; no parsing or crawl logic lives here"
+          command: "python -m unittest discover -s tests -t . -v"
+      validation_commands:
+        - "python -m unittest discover -s tests -t . -p 'test_collect_region_cli.py' -v"
+        - "python -m unittest discover -s tests -t . -v"
+      allowed_files:
+        - "src/collect_region.py"
+        - "src/scrape_listing_zenrows.py"
+        - "tests/test_collect_region_cli.py"
+        - "README.md"
+      forbidden_files:
+        - "src/idealista/region_crawler.py"
+        - "src/idealista/bronze_writer.py"
+      can_run_parallel_with: []
+      reversible: true
+      rollback: "Revert the task commit; the modules stay usable from Python directly"
+      files_to_create:
+        - "src/collect_region.py"
+        - "tests/test_collect_region_cli.py"
+      files_to_modify:
+        - "src/scrape_listing_zenrows.py"
+        - "README.md"
+
+    - id: "4.4"
+      title: "Validate end to end with one bounded live run and a free replay"
+      description: |
+        The proof the user asked for before considering a paid plan. One deliberately tiny live run,
+        then a replay of the same data at zero credits. Record the observed numbers in the feature
+        plan and calibrate the coverage thresholds from the real run rather than from a guess.
+        SPENDS LIVE CREDITS - requires the user's explicit go-ahead.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1
+      depends_on: ["4.3"]
+      branch: "feature/region-listing-crawl/4.4-bounded-live-validation"
+      commit_message: "docs: record the bounded live validation run for FEATURE-001"
+      acceptance_criteria:
+        - "A run with --max-pages 1 --max-listings 10 against L'Eliana produces observations, details and a run report"
+        - "The credits spent in that run match the report's counter"
+        - "A subsequent --replay run reproduces identical records with zero network calls"
+        - "Coverage thresholds are calibrated from the observed fill rates and committed"
+        - "The feature plan's progress log records the run, the credits spent and the resulting thresholds"
+        - "Every success criterion of the feature plan is checked off or explicitly explained"
+      tdd: null
+      validation_commands:
+        - "python -m unittest discover -s tests -t . -v"
+        - "python dev/tools/validate_workflow.py"
+      allowed_files:
+        - "dev/plans/FEATURE-001-region-listing-crawl.md"
+        - "dev/plans/README.md"
+        - "dev/plans/technical/FEATURE-001-technical-plan.yaml"
+        - "config/search_targets.yaml"
+      forbidden_files:
+        - "src/**"
+      can_run_parallel_with: []
+      reversible: true
+      rollback: "Revert the task commit; spent credits are not recoverable"
+      files_to_create: []
+      files_to_modify:
+        - "dev/plans/FEATURE-001-region-listing-crawl.md"
+        - "dev/plans/README.md"
+        - "config/search_targets.yaml"
+
+  git_workflow:
+    base_branch: "main"
+    branch_from: |
+      A task with no dependencies branches from main. A dependent task branches from the branch of
+      its last completed dependency, so the ancestry follows the dependency graph and no task has to
+      invent a merge order. Where a task has several dependencies, branch from the one latest on the
+      critical path and merge the others in first.
+    integration: |
+      Merge each task branch into the next dependent task's branch as it completes. Independent
+      chains (0.1, 0.2; 1.3/1.4, 1.5, 1.6; 2.2, 2.3) merge back into the feature integration branch
+      feature/region-listing-crawl before task 4.3, which is the first task that needs everything.
+    commit_policy: |
+      One focused commit per task using the task's commit_message. No feature work mixed with
+      unrelated refactors or formatting. Never commit anything under data/ (gitignored) and never a
+      fixture containing an agency name, phone number or email address.
+    pull_request:
+      title: "FEATURE-001: region-wide Idealista collection with drift-resistant extraction"
+      base: "main"
+      body_references:
+        - "dev/plans/FEATURE-001-region-listing-crawl.md"
+        - "dev/reviews/REVIEW-FEATURE-001.md"
+      checklist:
+        - "python -m unittest discover -s tests -t . -v passes"
+        - "python dev/tools/validate_workflow.py passes"
+        - "No secrets, personal data or files under data/ are included"
+        - "Statuses in the feature plan, the plans README and this technical plan agree"
+
+  notes:
+    - "Tasks 0.3 and 4.4 are the only ones that touch the live portal. Both spend credits from a
+      5,000-credit monthly allowance that does not roll over, and both need the user's explicit
+      go-ahead before execution."
+    - "Task 0.3 is not a blocker for parser work: a search page saved from the browser is a valid
+      fixture source and costs nothing. Only the js_render decision needs the live comparison."
+    - "Compare id sets, never HTML length, when judging whether a fetch succeeded. Idealista is
+      behind Datadome and a block arrives as HTTP 200 with a challenge body."
+    - "Fetching is sequential by decision (review finding M6). Do not add a thread pool; if a run
+      becomes too slow, that is a separate, additive change with its own evidence."
+    - "The local output layout in task 4.1 deliberately mirrors the S3 layout of FEATURE-002. If
+      that plan's layout changes, change task 4.1 with it."
+    - "Keep derived values out of Bronze: no price_per_sqm, no first_seen, no days_on_market. They
+      belong in Silver, where facts and derivations stay separated."
