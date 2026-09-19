@@ -72,30 +72,29 @@ until a reviewed feature establishes their requirements and cost.
 
 ## Responsible collection
 
-Collection must respect applicable law, portal terms, robots directives, and configured rate limits.
-The project does not bypass authentication, CAPTCHAs, access controls, or anti-bot protections.
+Collection targets publicly reachable listing and search pages only, following the "Scraping
+Rules" in [`.github/copilot-instructions.md`](.github/copilot-instructions.md): anti-bot mitigation
+such as a managed scraping API (ZenRows) with residential proxies is an acceptable tool for public
+pages, but the project never bypasses authentication or access controls, and never collects data
+that requires a login, a paid subscription, or a private API it is not entitled to use.
 
-HTTP acquisition and deterministic parsing belong in separate components. Default tests use small
-recorded, synthetic, or redacted fixtures and never access a live portal. Any explicitly approved
-live experiment must be optional, bounded, rate-limited, identifiable where required, and safe to
-stop. Secrets and unnecessary page content must not appear in source control or logs.
+Collection must also respect applicable law, portal terms, and configured rate limits, keep request
+volume modest, and stop if a portal operator objects. HTTP acquisition and deterministic parsing
+belong in separate components. Default tests use small recorded, synthetic, or redacted fixtures and
+never access a live portal. Any explicitly approved live experiment must be optional, bounded,
+rate-limited, identifiable where required, and safe to stop. Secrets and unnecessary page content
+must not appear in source control or logs.
 
 ## Current repository state
 
-- [src/notebooks/idealista_selenium_scraper.ipynb](src/notebooks/idealista_selenium_scraper.ipynb) is an
-  exploratory learning notebook, not a production collector or automated test. It contains live
-  browser automation and should not be run as part of the default development workflow.
-- [src/notebooks/idealista_playwright_scraper.ipynb](src/notebooks/idealista_playwright_scraper.ipynb)
-	contains a separate Playwright experiment, synthetic extraction checks and opt-in HTTP diagnostics.
+- [`src/idealista/`](src/idealista/) is the collection path: a ZenRows-based source adapter and a
+  deterministic HTML parser that turns a detail page into a `PropertyListing`, exercised by
+  [`src/scrape_listing_zenrows.py`](src/scrape_listing_zenrows.py) for a single listing URL.
 - [`infra/`](infra/) contains the intended infrastructure layout but no implemented resources yet.
-- [`dev/plans/`](dev/plans/) contains the feature workflow and templates. No real feature is
-  currently registered.
-- [`tests/`](tests/) covers workflow consistency, the Playwright listing contract and sanitized
-	navigation diagnostics using fake or intercepted responses, never live portal requests.
-
-The notebook still contains inherited feature references and experimental assumptions. Treat its
-results as provisional evidence until a registered feature reviews and replaces them with small,
-reproducible fixtures and tested production modules.
+- [`dev/plans/`](dev/plans/) contains the feature workflow, templates, and the registered features
+  that build region-wide collection, S3 storage, and a scheduled run on top of this path.
+- [`tests/`](tests/) covers the listing parser, the ZenRows source adapter, and workflow
+  consistency, using synthetic fixtures and a fake HTTP client — never live portal requests.
 
 ## Repository layout
 

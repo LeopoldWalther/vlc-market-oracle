@@ -39,7 +39,7 @@ technical_plan:
         .github/copilot-instructions.md and the already merged ZenRows path that sends
         premium_proxy=true against a Datadome-protected site. Resolve the contradiction before any
         code is written on top of it. State the approved mechanism positively.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 0.5
       depends_on: []

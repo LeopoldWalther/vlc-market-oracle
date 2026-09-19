@@ -1,6 +1,6 @@
 # FEATURE-001 — Region-wide Idealista collection with drift-resistant extraction
 
-**Status:** 🔵 Planned · **Effort:** L (~12h) · **Priority:** High
+**Status:** 🟡 In progress · **Effort:** L (~12h) · **Priority:** High
 **Branch root:** `feature/region-listing-crawl` · **Created:** 2026-09-18 · **Updated:** 2026-09-18
 
 > Authored by `@architect`. Reviewed by `@reviewer` (see `dev/reviews/REVIEW-FEATURE-001.md`).
